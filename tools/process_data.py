@@ -155,7 +155,7 @@ def main():
 
         if "asistencia" in col_map:
             val = str(row.get(col_map["asistencia"], "")).strip().upper()
-            asistio = val in ("1", "SI", "SI", "S", "TRUE", "YES", "X")
+            asistio = val in ("1", "SI", "SÍ", "S", "TRUE", "YES", "X")
         else:
             asistio = True
 
@@ -255,6 +255,17 @@ def main():
         fechas_asistidas_sorted = sorted(fechas_asistidas, reverse=True)
         ultima_asistencia = fechas_asistidas_sorted[0] if fechas_asistidas_sorted else None
 
+        # Racha actual: positivo = semanas asistidas consecutivas, negativo = semanas ausentes
+        hist_desc = sorted(historial, key=lambda x: x["fecha"], reverse=True)
+        racha_actual = 0
+        if hist_desc:
+            going = hist_desc[0]["asistio"]
+            for h in hist_desc:
+                if h["asistio"] == going:
+                    racha_actual += 1 if going else -1
+                else:
+                    break
+
         personas_list.append({
             "nombre_completo": p["nombre_completo"],
             "grupo_actual": grupo,
@@ -277,6 +288,7 @@ def main():
             "status_q2": status_q2,
             "at_risk": at_risk,
             "ultima_asistencia": ultima_asistencia,
+            "racha_actual": racha_actual,
         })
 
     # ---------------------------------------------------------------------------

@@ -1,7 +1,11 @@
 """
-Setup Google OAuth 2.0 - correr UNA sola vez antes de usar el proyecto.
-Requiere credentials.json en la raiz del proyecto.
-Genera token.json al completar la autorizacion.
+Tool: setup_google_auth.py  [LEGACY — no requerido para el flujo actual]
+
+El flujo de produccion usa Service Account (config/service_account.json), que no necesita
+browser ni interaccion manual. Este script configura OAuth 2.0 y solo es util como fallback
+si no tienes acceso a una Service Account.
+
+Para el flujo normal: coloca service_account.json en config/ y corre run_report.py.
 """
 
 import os
