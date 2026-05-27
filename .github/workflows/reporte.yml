@@ -1,0 +1,57 @@
+name: Reporte Asistencia J1
+
+on:
+  schedule:
+    - cron: "0 14 * * 1"  # Lunes 9am Lima (UTC-5 = 14:00 UTC)
+    - cron: "0 14 * * 2"  # Martes 9am Lima
+  workflow_dispatch:        # Permite correrlo manualmente desde GitHub Actions
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  reporte:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt
+
+      - name: Generar reporte
+        env:
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+          SHEET_ID: "1-bEJnaHTVpQjZ2E0HQv1IZh8Hf91Jrh4nMViMS69XlE"
+          SHEET_NAME: "03. Asistencia_Reporting"
+        run: |
+          python tools/fetch_sheets_data.py
+          python tools/process_data.py
+          python tools/generate_dashboard.py
+
+      - name: Preparar para GitHub Pages
+        run: cp dashboard.html index.html
+
+      - name: Subir artefacto a GitHub Pages
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: "."
+
+      - name: Deploy a GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
