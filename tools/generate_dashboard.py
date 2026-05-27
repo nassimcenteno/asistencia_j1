@@ -213,7 +213,7 @@ tr.clickable:hover{{background:var(--primary-light)}}
   <!-- ===== EN RIESGO ===== -->
   <div class="page" id="page-riesgo">
     <div class="alert-strip">
-      ⚠ Personas con <strong>0 asistencias en las ultimas 4 sesiones</strong> (2/5, 9/5, 16/5, 23/5).
+      ⚠ Personas con <strong>0 asistencias en las ultimas 4 sesiones de su grupo</strong>.
       Requieren seguimiento.
     </div>
     <div class="kpi-grid" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr))">

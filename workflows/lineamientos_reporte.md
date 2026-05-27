@@ -70,13 +70,7 @@ Aparecen destacados en el gráfico de evolución (punto naranja).
 
 Una persona está **en riesgo** si tiene **0 asistencias en las últimas 4 sesiones** que aplican a su grupo.
 
-Las sesiones actualmente consideradas como "últimas 4":
-- 02/05/2026
-- 09/05/2026
-- 16/05/2026
-- 23/05/2026
-
-> **IMPORTANTE**: Actualizar `LAST_4_SESSIONS` en `process_data.py` cada semana para que siempre refleje las 4 sesiones más recientes.
+El cálculo es **dinámico**: toma automáticamente las 4 fechas más recientes del historial de cada grupo. No requiere actualización manual.
 
 ---
 

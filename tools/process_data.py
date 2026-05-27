@@ -31,8 +31,6 @@ EVENTS = {
     "2026-03-21": "Reencuentro Montecamp",
 }
 
-# Ultimas 4 sesiones para calculo de "en riesgo"
-LAST_4_SESSIONS = {"2026-05-02", "2026-05-09", "2026-05-16", "2026-05-23"}
 
 GROUP_TYPES = {
     "GBU": "Grupos Universitarios",
@@ -247,10 +245,10 @@ def main():
             for d in fechas_aplican
         ]
 
-        # En riesgo: 0 asistencias en las ultimas 4 sesiones que aplican al grupo
-        last4_aplican = [d.isoformat() for d in fechas_aplican if d.isoformat() in LAST_4_SESSIONS]
-        at_risk = len(last4_aplican) > 0 and not any(
-            h["asistio"] for h in historial if h["fecha"] in LAST_4_SESSIONS
+        # En riesgo: 0 asistencias en las ultimas 4 sesiones que aplican al grupo (dinamico)
+        last4_fechas = {d.isoformat() for d in sorted(fechas_aplican)[-4:]}
+        at_risk = len(last4_fechas) > 0 and not any(
+            h["asistio"] for h in historial if h["fecha"] in last4_fechas
         )
 
         # Ultima asistencia
