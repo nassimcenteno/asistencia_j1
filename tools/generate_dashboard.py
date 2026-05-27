@@ -11,7 +11,7 @@ from datetime import datetime
 
 ROOT = Path(__file__).parent.parent
 TMP_DIR = ROOT / ".tmp"
-OUTPUT_PATH = ROOT / "dashboard.html"
+OUTPUT_PATH = ROOT / ".tmp" / "dashboard.html"
 
 
 def main():

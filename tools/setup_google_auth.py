@@ -15,8 +15,8 @@ def main():
     print("  SETUP: Autenticacion Google OAuth 2.0")
     print("=" * 60)
 
-    credentials_path = ROOT / "credentials.json"
-    token_path = ROOT / "token.json"
+    credentials_path = ROOT / "config" / "credentials.json"
+    token_path = ROOT / "config" / "token.json"
     env_path = ROOT / ".env"
 
     # --- Verificar credentials.json ---

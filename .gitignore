@@ -1,7 +1,6 @@
 .env
-credentials.json
-token.json
-service_account.json
-.tmp/
+config/*.json
+.tmp/asistencia_*.json
+.tmp/dashboard.html
 __pycache__/
 *.pyc

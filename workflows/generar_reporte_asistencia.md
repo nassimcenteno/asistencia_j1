@@ -1,28 +1,37 @@
 # Workflow: Generar Reporte de Asistencia Semanal — J1
 
 ## Objetivo
-Generar un dashboard HTML dinámico con la asistencia semanal del grupo J1 de la Alianza de Monterrico, leyendo los datos desde Google Sheets y abriendo el reporte en el browser.
+Generar un dashboard HTML dinámico con la asistencia semanal del grupo J1 de la Alianza de Monterrico, publicado automáticamente en GitHub Pages.
 
 ## Inputs requeridos
-- Google Sheets configurado y accesible
-- `credentials.json` en la raíz del proyecto (OAuth 2.0, Desktop App)
-- `token.json` generado (via `setup_google_auth.py`)
-- `.env` con `SHEET_ID`, `SHEET_NAME` y `SHEET_GID`
+- Google Sheet accesible por la Service Account
+- `config/service_account.json` (local) o secreto `GOOGLE_CREDENTIALS` (GitHub Actions)
+- `.env` con `SHEET_ID` y `SHEET_NAME`
 
 ## Herramientas
 | Tool | Propósito |
 |---|---|
-| `tools/setup_google_auth.py` | Configuración inicial OAuth (solo una vez) |
 | `tools/fetch_sheets_data.py` | Lee Google Sheets → `.tmp/asistencia_raw.json` |
 | `tools/process_data.py` | Aplica reglas de negocio → `.tmp/asistencia_processed.json` |
-| `tools/generate_dashboard.py` | Genera `dashboard.html` y lo abre en el browser |
+| `tools/generate_dashboard.py` | Genera `.tmp/dashboard.html` y lo abre en el browser |
 | `tools/run_report.py` | **Orquestador** — ejecuta los 3 pasos en secuencia |
+| `tools/setup_google_auth.py` | Setup OAuth legacy (no necesario para CI) |
 
-## Ejecución normal (uso semanal)
+## Ejecución normal (uso local)
 ```bash
 python tools/run_report.py
 ```
-Eso es todo. El dashboard se abre automáticamente en el browser.
+El dashboard se abre automáticamente en el browser desde `.tmp/dashboard.html`.
+
+## Ejecución automática (lunes y martes 9am Lima)
+GitHub Actions corre el pipeline en la nube sin intervención manual.
+Publicado en: **https://nassimcenteno.github.io/asistencia_j1/**
+
+---
+
+## Reglas de negocio
+**Ver `workflows/lineamientos_reporte.md`** — ahí están TODAS las reglas de negocio codificadas.
+Al agregar una nueva excepción o lineamiento: actualizar ese archivo Y el código en `process_data.py`.
 
 ---
 
@@ -33,95 +42,28 @@ Eso es todo. El dashboard se abre automáticamente en el browser.
 pip install -r requirements.txt
 ```
 
-### 2. Obtener credentials.json de Google Cloud
-1. Ve a https://console.cloud.google.com/
-2. Crea un proyecto nuevo (ej: "J1-Asistencia")
-3. Menú → APIs y servicios → Biblioteca → busca **Google Sheets API** → Habilitar
-4. Menú → APIs y servicios → Credenciales → Crear credenciales → ID de cliente OAuth 2.0
-5. Tipo de aplicación: **Aplicación de escritorio**
-6. Descarga el JSON → renómbralo a `credentials.json`
-7. Colócalo en la raíz del proyecto
-
-### 3. Configurar .env
-Edita el archivo `.env` en la raíz:
+### 2. Configurar .env
 ```
 SHEET_ID=1-bEJnaHTVpQjZ2E0HQv1IZh8Hf91Jrh4nMViMS69XlE
-SHEET_GID=1452026459
-SHEET_NAME=<nombre exacto de la pestaña>
+SHEET_NAME=03. Asistencia_Reporting
 ```
 
-### 4. Autorizar acceso
-```bash
-python tools/setup_google_auth.py
-```
-Se abrirá el browser. Selecciona tu cuenta Google → Permitir acceso.
-Confirma que aparece el mensaje `✅ Setup completo.`
+### 3. Colocar service_account.json
+Descargar desde Google Cloud Console y colocar en `config/service_account.json`.
+**Nunca subir al repo** (está en `.gitignore`).
 
 ---
 
-## Reglas de negocio aplicadas
+## Estructura de archivos generados
 
-### Columnas relevantes
-- **Usar `GRUPO ACTUAL`**, no `GRUPO`
-- Solo se procesan personas con `GRUPO ACTUAL` no vacío (vacío = desconectado)
-- `Fecha reunion STD` = fecha de la sesión
-- `TIPO_MIEMBRO` vacío = no es miembro
-
-### Excepciones de sesiones (afectan el denominador del %)
-| Fecha | Regla |
-|---|---|
-| 11/04/2025 | Solo betta, betta viajeros y sigma tuvieron sesión |
-| 02/05/2025 | Betta NO tuvo sesión |
-| 23/05/2025 | Betta NO tuvo sesión |
-
-Para el resto de grupos y fechas: todas las sesiones aplican.
-
-### Eventos Q1 (no son sesiones regulares, pero cuentan)
-| Fecha | Evento |
-|---|---|
-| 28/02/2025 | JADAK |
-| 14/03/2025 | Montecamp |
-| 21/03/2025 | Reencuentro Montecamp |
-
-### Status por % de asistencia individual
-| % | Status |
-|---|---|
-| 0% | Inactivo |
-| 1–50% | Inconstante |
-| 51–79% | Activo |
-| 80%+ | Fiel |
-
-### Períodos
-- **Q1**: enero – marzo (inclusive)
-- **Q2**: abril en adelante
-
-### Tipos de grupo
-- **GBU**: Grupos Universitarios
-- **GDA**: Grupos de Amistad
-- **GDC**: Grupos de Crecimiento
-
----
-
-## Programación automática (lunes y martes)
-
-Abrir PowerShell como administrador y ejecutar:
-
-```powershell
-# Lunes 09:00
-$action = New-ScheduledTaskAction -Execute "python" -Argument "tools\run_report.py" -WorkingDirectory "C:\Users\nassim.centenosimons\OneDrive - Verisure\Documentos\CLAUDE_PROJECTS\03. JETRO_Asistencia_Semanal"
-$trigger = New-ScheduledTaskTrigger -Weekly -DaysOfWeek Monday -At "09:00"
-Register-ScheduledTask -TaskName "J1-Reporte-Lunes" -Action $action -Trigger $trigger -RunLevel Highest
-
-# Martes 09:00
-$trigger2 = New-ScheduledTaskTrigger -Weekly -DaysOfWeek Tuesday -At "09:00"
-Register-ScheduledTask -TaskName "J1-Reporte-Martes" -Action $action -Trigger $trigger2 -RunLevel Highest
+```
+.tmp/
+  asistencia_raw.json        ← datos crudos del Sheet
+  asistencia_processed.json  ← datos procesados con reglas de negocio
+  dashboard.html             ← dashboard generado (entregable intermedio)
 ```
 
----
-
-## Output esperado
-- `dashboard.html` en la raíz del proyecto, abierto en el browser
-- Secciones: KPIs globales, Asistencia por grupo, Distribución GBU/GDA/GDC, Evolución semanal, Q1 vs Q2, Tabla de participantes con filtros, Drilldown por persona
+GitHub Actions copia `.tmp/dashboard.html` → `index.html` antes de publicar.
 
 ---
 
@@ -129,16 +71,15 @@ Register-ScheduledTask -TaskName "J1-Reporte-Martes" -Action $action -Trigger $t
 
 | Error | Causa | Solución |
 |---|---|---|
-| `credentials.json no encontrado` | No se descargó de Google Cloud | Seguir pasos del setup inicial |
-| `token.json no encontrado` | No se corrió setup_google_auth.py | `python tools/setup_google_auth.py` |
+| `No se encontro service_account.json` | Falta el archivo en `config/` | Colocar el JSON en `config/service_account.json` |
 | `Pestaña 'X' no encontrada` | SHEET_NAME incorrecto en .env | Revisar nombre exacto de la pestaña en Sheets |
 | `Columnas requeridas no encontradas` | El Sheet cambió sus encabezados | Actualizar `col_map` en `process_data.py` |
-| `token expired` | Token vencido | El script lo refresca automáticamente. Si falla, borrar token.json y re-correr setup |
+| GitHub Actions falla en fetch | Secreto `GOOGLE_CREDENTIALS` mal configurado | Verificar el secreto en Settings → Secrets → Actions |
 
 ---
 
-## Aprendizajes y actualizaciones
+## Aprendizajes
 
-*(Documenta aquí cualquier cambio en el Sheets, nuevas excepciones de fechas o ajustes al cálculo)*
-
-- **2025-05-26**: Setup inicial del proyecto. Excepciones de fechas codificadas en `process_data.py > EXCEPTIONS`.
+- **2026-05**: Migración de OAuth a Service Account para permitir auth sin browser en CI.
+- **2026-05**: Guard `if not os.getenv("CI")` en `generate_dashboard.py` evita error de display en GitHub Actions.
+- **2026-05**: GitHub Pages con source "GitHub Actions" no requiere botón Save — se configura automáticamente.

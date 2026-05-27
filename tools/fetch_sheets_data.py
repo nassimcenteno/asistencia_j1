@@ -31,7 +31,7 @@ def get_gspread_client():
     if creds_env:
         info = json.loads(creds_env)
     else:
-        sa_path = ROOT / "service_account.json"
+        sa_path = ROOT / "config" / "service_account.json"
         if not sa_path.exists():
             print("[ERROR]  No se encontro service_account.json ni la variable GOOGLE_CREDENTIALS.")
             print("         Coloca el archivo service_account.json en la raiz del proyecto.")

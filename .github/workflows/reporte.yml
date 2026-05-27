@@ -45,7 +45,7 @@ jobs:
           python tools/generate_dashboard.py
 
       - name: Preparar para GitHub Pages
-        run: cp dashboard.html index.html
+        run: cp .tmp/dashboard.html index.html
 
       - name: Subir artefacto a GitHub Pages
         uses: actions/upload-pages-artifact@v3
