@@ -7,7 +7,7 @@ listo para ser consumido por generate_dashboard.py
 import json
 import sys
 from pathlib import Path
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from collections import defaultdict
 
 ROOT = Path(__file__).parent.parent
@@ -23,12 +23,15 @@ EXCEPTIONS = {
     # 2/5 y 23/5: GDC BETTA no tuvo sesion
     "2026-05-02": {"excluir": ["GDC BETTA"]},
     "2026-05-23": {"excluir": ["GDC BETTA"]},
+    # 30/5: GDC BETTA VIAJEROS no tuvo sesion
+    "2026-05-30": {"excluir": ["GDC BETTA VIAJEROS"]},
 }
 
 EVENTS = {
     "2026-02-28": "JADAK",
     "2026-03-14": "Montecamp",
     "2026-03-21": "Reencuentro Montecamp",
+    "2026-05-02": "Apologética",
 }
 
 
@@ -38,7 +41,23 @@ GROUP_TYPES = {
     "GDC": "Grupos de Crecimiento",
 }
 
+# Grupos creados en el ciclo: las sesiones solo cuentan a partir del siguiente sábado
+# tras su fecha de creación. No se les debe considerar asistencia previa.
+GROUP_START_DATES: dict[str, date] = {
+    "GDC LAMBDA": date(2026, 5, 17),
+    "GDC NEW BETTA": date(2026, 5, 17),
+}
+
 STATUS_ORDER = ["Fiel", "Activo", "Inconstante", "Inactivo"]
+
+
+def get_active_from(ingreso: date) -> date:
+    """Próximo sábado estrictamente después de la fecha de ingreso.
+    Si ingresó un sábado, devuelve el sábado de la semana siguiente."""
+    days = (5 - ingreso.weekday()) % 7
+    if days == 0:
+        days = 7
+    return ingreso + timedelta(days=days)
 
 
 def get_quarter(d: date) -> str:
@@ -121,6 +140,10 @@ def main():
             col_map["fecha"] = col
         elif cl == "asistencia":
             col_map["asistencia"] = col
+        elif "fecha_ingreso" in cl or "fecha ingreso" in cl or cl == "ingreso":
+            col_map["fecha_ingreso"] = col
+        elif cl == "dni":
+            col_map["dni"] = col
         elif cl == "status" or cl == "estado":
             col_map["status_raw"] = col
 
@@ -138,6 +161,7 @@ def main():
     # ---------------------------------------------------------------------------
     personas: dict = {}
     all_sessions: set[date] = set()
+    group_af_map = {g: get_active_from(d) for g, d in GROUP_START_DATES.items()}
 
     for row in rows:
         grupo_actual = str(row.get(col_map["grupo_actual"], "")).strip()
@@ -161,7 +185,8 @@ def main():
 
         all_sessions.add(session_date)
 
-        persona_key = full_name.lower()
+        dni = str(row.get(col_map.get("dni", ""), "")).strip()
+        persona_key = f"{full_name.lower()}|{dni}" if dni else full_name.lower()
         if persona_key not in personas:
             tipo_grupo_raw = str(row.get(col_map.get("tipo_grupo", ""), "")).strip()
             for key in ("GBU", "GDA", "GDC"):
@@ -169,19 +194,28 @@ def main():
                     tipo_grupo_raw = key
                     break
             tipo_miembro = str(row.get(col_map.get("tipo_miembro", ""), "")).strip()
+            fi_raw = str(row.get(col_map.get("fecha_ingreso", ""), "")).strip()
+            fi_date = parse_date(fi_raw)
             personas[persona_key] = {
+                "id": persona_key,
                 "nombre_completo": full_name,
                 "grupo_actual": grupo_actual,
                 "rol": str(row.get(col_map.get("rol", ""), "")).strip(),
                 "tipo_miembro": tipo_miembro,
                 "es_miembro": tipo_miembro in ("Miembro Bautizado", "Transferido"),
                 "tipo_grupo": tipo_grupo_raw,
+                "fecha_ingreso": fi_date.isoformat() if fi_date else None,
+                "active_from": get_active_from(fi_date) if fi_date else None,
                 "sesiones_raw": [],
             }
 
         quarter = get_quarter(session_date)
         evento = EVENTS.get(session_date.isoformat())
-        aplica = session_applies_to_group(session_date, grupo_actual)
+        personal_af = personas[persona_key].get("active_from")
+        g_af = group_af_map.get(grupo_actual.upper())
+        effective_af = max(personal_af, g_af) if personal_af and g_af else (personal_af or g_af)
+        aplica = (session_applies_to_group(session_date, grupo_actual) and
+                  (effective_af is None or session_date >= effective_af))
         personas[persona_key]["sesiones_raw"].append({
             "fecha": session_date.isoformat(),
             "quarter": quarter,
@@ -195,16 +229,12 @@ def main():
     # ---------------------------------------------------------------------------
     grupos_set = {p["grupo_actual"] for p in personas.values()}
     sesiones_por_grupo: dict[str, list[date]] = {
-        g: sorted([s for s in all_sessions if session_applies_to_group(s, g)])
+        g: sorted(
+            s for s in all_sessions
+            if session_applies_to_group(s, g)
+            and (g.upper() not in group_af_map or s >= group_af_map[g.upper()])
+        )
         for g in grupos_set
-    }
-    sesiones_q1_por_grupo = {
-        g: len([s for s in slist if get_quarter(s) == "Q1"])
-        for g, slist in sesiones_por_grupo.items()
-    }
-    sesiones_q2_por_grupo = {
-        g: len([s for s in slist if get_quarter(s) == "Q2"])
-        for g, slist in sesiones_por_grupo.items()
     }
 
     # ---------------------------------------------------------------------------
@@ -215,7 +245,11 @@ def main():
     for persona_key, p in personas.items():
         grupo = p["grupo_actual"]
         sesiones_raw = p["sesiones_raw"]
-        fechas_aplican = sesiones_por_grupo.get(grupo, [])
+        active_from = p.get("active_from")
+        fechas_aplican = [
+            d for d in sesiones_por_grupo.get(grupo, [])
+            if active_from is None or d >= active_from
+        ]
         fechas_asistidas = {s["fecha"] for s in sesiones_raw if s["asistio"]}
 
         total_sesiones = len(fechas_aplican)
@@ -223,11 +257,11 @@ def main():
         pct_total = round(total_asistencias / total_sesiones * 100, 1) if total_sesiones > 0 else 0
 
         asist_q1 = len([s for s in sesiones_raw if s["quarter"] == "Q1" and s["aplica_denominador"] and s["asistio"]])
-        total_q1 = sesiones_q1_por_grupo.get(grupo, 0)
+        total_q1 = len([d for d in fechas_aplican if get_quarter(d) == "Q1"])
         pct_q1 = round(asist_q1 / total_q1 * 100, 1) if total_q1 > 0 else 0
 
         asist_q2 = len([s for s in sesiones_raw if s["quarter"] == "Q2" and s["aplica_denominador"] and s["asistio"]])
-        total_q2 = sesiones_q2_por_grupo.get(grupo, 0)
+        total_q2 = len([d for d in fechas_aplican if get_quarter(d) == "Q2"])
         pct_q2 = round(asist_q2 / total_q2 * 100, 1) if total_q2 > 0 else 0
 
         status = get_status(pct_total)
@@ -267,12 +301,14 @@ def main():
                     break
 
         personas_list.append({
+            "id": p["id"],
             "nombre_completo": p["nombre_completo"],
             "grupo_actual": grupo,
             "rol": p["rol"],
             "tipo_miembro": p["tipo_miembro"],
             "es_miembro": p["es_miembro"],
             "tipo_grupo": p["tipo_grupo"],
+            "fecha_ingreso": p.get("fecha_ingreso"),
             "sesiones": historial,
             "total_sesiones": total_sesiones,
             "total_asistencias": total_asistencias,
@@ -360,6 +396,16 @@ def main():
     # ---------------------------------------------------------------------------
     # Evolucion semanal
     # ---------------------------------------------------------------------------
+    person_active_from = {}
+    for p in personas_list:
+        fi = p.get("fecha_ingreso")
+        af = get_active_from(parse_date(fi)) if fi else None
+        gs = GROUP_START_DATES.get(p["grupo_actual"].upper())
+        if gs:
+            gaf = get_active_from(gs)
+            af = max(af, gaf) if af else gaf
+        person_active_from[p["id"]] = af
+
     evolucion = []
     for d in sorted(all_sessions):
         asistentes = sum(
@@ -369,6 +415,8 @@ def main():
         total_aplica = sum(
             1 for p in personas_list
             if session_applies_to_group(d, p["grupo_actual"])
+            and (person_active_from[p["id"]] is None
+                 or d >= person_active_from[p["id"]])
         )
         evolucion.append({
             "fecha": d.isoformat(),

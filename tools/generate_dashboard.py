@@ -200,7 +200,7 @@ tr.clickable:hover{{background:var(--primary-light)}}
     <div class="charts-grid">
       <div class="chart-card">
         <div class="chart-title">Asistencia por Grupo</div>
-        <div style="height:300px"><canvas id="chartGrupos"></canvas></div>
+        <div id="chartGruposWrap" style="height:300px"><canvas id="chartGrupos"></canvas></div>
       </div>
       <div class="chart-card">
         <div class="chart-title">Distribucion por Tipo (GBU / GDA / GDC)</div>
@@ -492,7 +492,8 @@ function renderKPIs(){{
 const TOUCH={{interaction:{{mode:'nearest',intersect:false}},events:['click','mousemove','touchstart','touchmove']}};
 
 function renderChartGrupos(){{
-  const g=DATA.grupos.slice(0,14);
+  const g=DATA.grupos.slice(0,20);
+  document.getElementById('chartGruposWrap').style.height=Math.max(280,g.length*20)+'px';
   new Chart(document.getElementById('chartGrupos'),{{
     type:'bar',
     data:{{labels:g.map(x=>x.nombre),datasets:[{{label:'% Asistencia',data:g.map(x=>x.pct_asistencia),
@@ -530,7 +531,7 @@ function renderChartEvolucion(){{
     options:{{responsive:true,maintainAspectRatio:false,...TOUCH,
       plugins:{{legend:{{display:false}},tooltip:{{callbacks:{{
         title:c=>{{const e=ev[c[0].dataIndex];return fmtDate(e.fecha)+(e.evento?' - '+e.evento:'')}},
-        label:c=>` ${{c.parsed.y}}% (asistentes: ${{ev[c[0].dataIndex].asistentes}})`
+        label:c=>` ${{c.parsed.y}}% (asistentes: ${{ev[c.dataIndex].asistentes}})`
       }}}}}},
       scales:{{y:{{min:0,max:100,grid:{{color:'#F3F4F6'}},ticks:{{callback:v=>v+'%'}}}},x:{{grid:{{display:false}}}}}}
     }}
@@ -817,7 +818,7 @@ function openGroupDrilldown(groupName){{
     options:{{responsive:true,maintainAspectRatio:false,...TOUCH,
       plugins:{{legend:{{display:false}},tooltip:{{callbacks:{{
         title:c=>{{const e=gEv[c[0].dataIndex];return fmtDate(e.fecha)+(e.evento?' - '+e.evento:'')}},
-        label:c=>` ${{c.parsed.y}}% (${{gEv[c[0].dataIndex].att}}/${{gEv[c[0].dataIndex].tot}})`
+        label:c=>` ${{c.parsed.y}}% (${{gEv[c.dataIndex].att}}/${{gEv[c.dataIndex].tot}})`
       }}}}}},
       scales:{{y:{{min:0,max:100,ticks:{{callback:v=>v+'%'}}}},x:{{grid:{{display:false}}}}}}
     }}

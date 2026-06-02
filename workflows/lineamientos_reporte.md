@@ -48,6 +48,7 @@ Al agregar una nueva excepción: actualizar aquí Y en `EXCEPTIONS` en `process_
 | **11/04/2026** | SOLO tuvieron sesión: GDC BETTA, GDC BETTA VIAJEROS, GDC SIGMA. El resto NO cuenta esta fecha. |
 | **02/05/2026** | GDC BETTA **no** tuvo sesión — excluir de su denominador. |
 | **23/05/2026** | GDC BETTA **no** tuvo sesión — excluir de su denominador. |
+| **30/05/2026** | GDC BETTA VIAJEROS **no** tuvo sesión — excluir de su denominador. |
 
 **Regla por defecto:** Si una fecha no está en excepciones, aplica a TODOS los grupos.
 
@@ -63,6 +64,7 @@ Aparecen como punto naranja en el gráfico de evolución del dashboard.
 | **28/02/2026** | JADAK |
 | **14/03/2026** | Montecamp |
 | **21/03/2026** | Reencuentro Montecamp |
+| **02/05/2026** | Apologética |
 
 ---
 
@@ -105,6 +107,38 @@ Cualquier otro valor (o vacío) = no es miembro formal.
 
 ---
 
+## 10. Fecha de inicio de grupos (GROUP_START_DATES)
+
+Algunos grupos fueron creados durante el ciclo y no existían desde el inicio. Estos grupos tienen una fecha de inicio codificada en `GROUP_START_DATES` en `process_data.py`. Las sesiones anteriores a su sábado de inicio no cuentan para sus miembros, no afectan la evolución global, y la columna **Sesiones** en la tabla de grupos refleja solo las sesiones desde ese punto.
+
+| Grupo | Fecha de creación | Active from |
+|---|---|---|
+| GDC LAMBDA | 17/05/2026 | 23/05/2026 |
+| GDC NEW BETTA | 17/05/2026 | 23/05/2026 |
+
+Aplicación en el código:
+- `group_af_map` se computa antes del loop de filas y se usa en `aplica_denominador` (numerador)
+- `sesiones_por_grupo` también aplica `group_af_map` al construirse → `sesiones_totales` correcto en tabla de grupos
+- `person_active_from` en la evolución combina GROUP_START_DATES + FECHA_INGRESO personal (safeguard doble)
+
+Al agregar un nuevo grupo con fecha de inicio: actualizar `GROUP_START_DATES` en `process_data.py` Y esta tabla.
+
+---
+
+## 11. Fecha de ingreso individual (FECHA_INGRESO)
+
+Si una persona tiene la columna `FECHA_INGRESO` con un valor, sus sesiones **solo cuentan a partir del próximo sábado** después de esa fecha.
+
+- Si ingresó un sábado → sus sesiones cuentan desde el sábado de la **semana siguiente**.
+- Si ingresó cualquier otro día → sus sesiones cuentan desde el **sábado más cercano posterior**.
+- Sesiones previas a esa fecha: no afectan su numerador, ni su denominador, ni el `total_aplica` de la evolución semanal del grupo.
+
+**Ejemplo:** Ingreso el 17/05/2026 (domingo) → `active_from` = 23/05/2026. Solo cuenta sesiones desde el 23/5 en adelante.
+
+Al agregar personas nuevas con FECHA_INGRESO: no requiere cambio de código. El pipeline lo detecta automáticamente desde la columna del Sheet.
+
+---
+
 ## Historial de cambios
 
 | Fecha | Cambio |
@@ -114,3 +148,11 @@ Cualquier otro valor (o vacío) = no es miembro formal.
 | 2026-05 | Eventos JADAK, Montecamp, Reencuentro registrados |
 | 2026-05 | `racha_actual` agregado como campo computado por persona |
 | 2026-05 | Dashboard: responsive mobile, ordenamiento de tablas, exportar CSV, delta WoW, KPI cards navegables, modal de grupo |
+| 2026-06 | Lógica FECHA_INGRESO: sesiones cuentan desde el sábado siguiente al ingreso |
+| 2026-06 | Evento APOLOGÉTICA (02/05) registrado |
+| 2026-06 | Grupos nuevos: LAMBDA, NEW BETTA, GDA USIL (detectados automáticamente desde el Sheet) |
+| 2026-06 | Fix tooltip gráfico de evolución (% asistencia al hacer hover) |
+| 2026-06 | GROUP_START_DATES aplicado a sesiones_por_grupo → columna Sesiones correcta para grupos nuevos |
+| 2026-06 | persona_key incluye DNI → personas con mismo nombre se cuentan correctamente (303→305) |
+| 2026-06 | Fix tooltip mini-chart modal de grupo; altura charts overview sincronizada |
+| 2026-06 | Excepción 30/5: GDC BETTA VIAJEROS no tuvo sesión |
