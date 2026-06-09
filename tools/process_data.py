@@ -25,6 +25,8 @@ EXCEPTIONS = {
     "2026-05-23": {"excluir": ["GDC BETTA"]},
     # 30/5: GDC BETTA VIAJEROS no tuvo sesion
     "2026-05-30": {"excluir": ["GDC BETTA VIAJEROS"]},
+    # 6/6: GDC BETTA no tuvo sesion
+    "2026-06-06": {"excluir": ["GDC BETTA"]},
 }
 
 EVENTS = {

@@ -49,6 +49,7 @@ Al agregar una nueva excepción: actualizar aquí Y en `EXCEPTIONS` en `process_
 | **02/05/2026** | GDC BETTA **no** tuvo sesión — excluir de su denominador. |
 | **23/05/2026** | GDC BETTA **no** tuvo sesión — excluir de su denominador. |
 | **30/05/2026** | GDC BETTA VIAJEROS **no** tuvo sesión — excluir de su denominador. |
+| **06/06/2026** | GDC BETTA **no** tuvo sesión — excluir de su denominador. |
 
 **Regla por defecto:** Si una fecha no está en excepciones, aplica a TODOS los grupos.
 
@@ -160,3 +161,4 @@ Al agregar personas nuevas con FECHA_INGRESO: no requiere cambio de código. El 
 | 2026-06 | Regla FECHA_INGRESO y GROUP_START_DATES: cuentan desde la fecha misma (inclusive), no desde el sábado siguiente |
 | 2026-06 | GROUP_START_DATES LAMBDA y NEW BETTA: fecha actualizada a 16/05 → 4 sesiones (16/5, 23/5, 30/5, 06/6) |
 | 2026-06 | Evento El Viaje (16/05) registrado |
+| 2026-06 | Excepción 6/6: GDC BETTA no tuvo sesión |
