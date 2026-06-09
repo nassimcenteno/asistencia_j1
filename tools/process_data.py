@@ -32,6 +32,7 @@ EVENTS = {
     "2026-03-14": "Montecamp",
     "2026-03-21": "Reencuentro Montecamp",
     "2026-05-02": "Apologética",
+    "2026-05-16": "El Viaje",
 }
 
 
@@ -41,23 +42,18 @@ GROUP_TYPES = {
     "GDC": "Grupos de Crecimiento",
 }
 
-# Grupos creados en el ciclo: las sesiones solo cuentan a partir del siguiente sábado
-# tras su fecha de creación. No se les debe considerar asistencia previa.
+# Grupos creados en el ciclo: sesiones cuentan desde su fecha de creación (inclusive).
 GROUP_START_DATES: dict[str, date] = {
-    "GDC LAMBDA": date(2026, 5, 17),
-    "GDC NEW BETTA": date(2026, 5, 17),
+    "GDC LAMBDA": date(2026, 5, 16),
+    "GDC NEW BETTA": date(2026, 5, 16),
 }
 
 STATUS_ORDER = ["Fiel", "Activo", "Inconstante", "Inactivo"]
 
 
 def get_active_from(ingreso: date) -> date:
-    """Próximo sábado estrictamente después de la fecha de ingreso.
-    Si ingresó un sábado, devuelve el sábado de la semana siguiente."""
-    days = (5 - ingreso.weekday()) % 7
-    if days == 0:
-        days = 7
-    return ingreso + timedelta(days=days)
+    """Sesiones cuentan desde esta fecha (inclusive)."""
+    return ingreso
 
 
 def get_quarter(d: date) -> str:
