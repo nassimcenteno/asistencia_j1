@@ -150,7 +150,6 @@ Al agregar personas nuevas con FECHA_INGRESO: no requiere cambio de código. El 
 | 2026-05 | Eventos JADAK, Montecamp, Reencuentro registrados |
 | 2026-05 | `racha_actual` agregado como campo computado por persona |
 | 2026-05 | Dashboard: responsive mobile, ordenamiento de tablas, exportar CSV, delta WoW, KPI cards navegables, modal de grupo |
-| 2026-06 | Lógica FECHA_INGRESO: sesiones cuentan desde el sábado siguiente al ingreso |
 | 2026-06 | Evento APOLOGÉTICA (02/05) registrado |
 | 2026-06 | Grupos nuevos: LAMBDA, NEW BETTA, GDA USIL (detectados automáticamente desde el Sheet) |
 | 2026-06 | Fix tooltip gráfico de evolución (% asistencia al hacer hover) |
