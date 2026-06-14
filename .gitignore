@@ -1,6 +1,8 @@
 .env
 config/*.json
 .tmp/asistencia_*.json
-.tmp/dashboard.html
+.tmp/dashboard*.html
+subagents/sub_insights/reports/*.html
+subagents/sub_insights/reports/*.md
 __pycache__/
 *.pyc

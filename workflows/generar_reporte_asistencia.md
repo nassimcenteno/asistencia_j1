@@ -25,7 +25,6 @@ Generar un dashboard HTML interactivo con la asistencia semanal del grupo J1 de 
 | `process_data.py` | `asistencia_raw.json` | `.tmp/asistencia_processed.json` | Aplica todas las reglas de negocio |
 | `generate_dashboard.py` | `asistencia_processed.json` | `.tmp/dashboard.html` | Genera el HTML interactivo |
 | `run_report.py` | — | Corre los 3 anteriores | Orquestador para uso local |
-| `setup_google_auth.py` | — | `config/token.json` | **[LEGACY]** OAuth antiguo, no usar |
 
 ---
 
@@ -61,33 +60,25 @@ Al agregar una nueva excepción o lineamiento: actualizar ese archivo **y** el c
 
 ## Features del dashboard
 
-El dashboard generado incluye:
+Stack: **Tailwind CSS CDN + ApexCharts + Inter font + dark mode** (CSS custom properties).
 
-**Análisis:**
-- KPIs globales con delta week-over-week (↑↓ vs semana anterior)
-- Distribución de status por tipo de grupo (GBU / GDA / GDC)
-- Evolución semanal de asistencia con eventos especiales destacados
-- Comparativa Q1 vs Q2 por grupo
-- Matriz de transición de status Q1 → Q2
+**4 tabs:** Resumen / Grupos / Personas / Riesgo
 
-**Navegación:**
-- 4 tabs: Resumen / Grupos / En Riesgo / Personas
-- KPI cards clickeables → navegan a la vista filtrada
-- Modal de detalle por persona: racha actual 🔥/❄️, historial visual, mini-chart
-- Modal de detalle por grupo: evolución propia + ranking de menor asistencia
+**Tab Resumen:**
+- Ranking de grupos por % asistencia: barra proporcional con línea de referencia al promedio global
+- Donut de distribución por tipo de grupo (GBU / GDA / GDC) con overlay HTML para el total en el centro
+- Evolución semanal: área con gradiente, marcadores naranjos para eventos especiales (`markers.discrete`), línea punteada gris de promedio
+- 4 summary cards debajo del chart: Mejor semana / Peor semana / Promedio semanal (N personas) / Total semanas — cada una con icono SVG
 
-**Tablas:**
-- Ordenamiento por cualquier columna (click en encabezado)
-- Filtros por tipo, grupo, status
-- Búsqueda por nombre
-- Exportar CSV (datos actualmente filtrados)
-- "Hace N semanas" en lista de riesgo (en vez de fecha cruda)
+**Tab Grupos:**
+- Comparativa Q1 vs Q2 por grupo (columnas verticales, legible, sin etiquetas amontonadas)
 
-**Mobile:**
-- Tablas se convierten en cards apiladas en pantallas < 640px
-- Modal como bottom sheet en mobile
-- Tabs con iconos, header compacto
-- Charts con soporte táctil (touch events)
+**Tab Personas:**
+- Tabla filtrable por nombre, grupo, tipo, status
+- Modal de detalle por persona: racha actual, historial visual, mini-chart
+
+**Tab Riesgo:**
+- Lista de personas en riesgo con "hace N semanas" (no fecha cruda)
 
 ---
 
@@ -149,3 +140,6 @@ GitHub Actions copia `.tmp/dashboard.html` → `index.html` antes de publicar en
 | 2026-05 | Push de workflow files requiere PAT con scope `workflow` (además de `repo`) |
 | 2026-05 | En f-strings de Python, backslashes en regex JS generan regex rotas — usar `data-nombre` + `this.dataset.nombre` para onclick seguros con nombres que tengan apóstrofes |
 | 2026-05 | VSCode HTML preview no ejecuta JS externo (CDN) — siempre probar en Chrome/Edge |
+| 2026-06 | ApexCharts no resuelve `var(--css)` dentro del canvas — usar hex hardcodeado o overlay HTML |
+| 2026-06 | Para colorear puntos individuales en ApexCharts usar `markers.discrete` (NO `markers.colors` array) |
+| 2026-06 | Label de `annotations.yaxis` siempre se superpone al chart — moverlo a HTML estático fuera del chart |

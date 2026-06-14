@@ -52,19 +52,36 @@ This loop is how the framework improves over time.
 ## File Structure
 
 **What goes where:**
-- **Deliverables**: Final outputs go to cloud services (Google Sheets, Slides, etc.) where I can access them directly
+- **Deliverables**: Final outputs go to cloud services (Google Sheets, GitHub Pages, etc.) where I can access them directly
 - **Intermediates**: Temporary processing files that can be regenerated
 
 **Directory layout:**
 ```
-.tmp/           # Temporary files (scraped data, intermediate exports). Regenerated as needed.
-tools/          # Python scripts for deterministic execution
-workflows/      # Markdown SOPs defining what to do and how
+tools/          # Production pipeline scripts (atomic, run sequentially, automated via GitHub Actions)
+                #   fetch_sheets_data.py → process_data.py → generate_dashboard.py → run_report.py
+
+subagents/      # On-demand analytical modules (triggered manually, not part of the pipeline)
+                #   Each sub-agent has: analyze.py + reports/ (dated outputs, gitignored)
+                #   sub_insights/ → deep-dive analysis of attendance data
+
+workflows/      # Markdown SOPs — one per major process or sub-agent
+                #   generar_reporte_asistencia.md → production pipeline SOP
+                #   lineamientos_reporte.md       → business rules (source of truth)
+                #   analizar_insights.md          → sub_insights invocation SOP
+
+skills/         # Reference documents that extend Claude's capabilities (not SOPs, not scripts)
+                #   DESIGN_SKILL.md → UI/UX standards for dashboards and reports
+
+config/         # Google auth credentials (gitignored)
+.tmp/           # Ephemeral pipeline outputs (regenerated as needed, mostly gitignored)
 .env            # API keys and environment variables (NEVER store secrets anywhere else)
-credentials.json, token.json  # Google OAuth (gitignored)
 ```
 
-**Core principle:** Local files are just for processing. Anything I need to see or use lives in cloud services. Everything in `.tmp/` is disposable.
+**Core principle:** Local files are just for processing. Anything I need to see or use lives in cloud services. Everything in `.tmp/` is disposable. Sub-agent reports in `subagents/*/reports/` are also ephemeral — regenerate on demand.
+
+**tools/ vs subagents/:**
+- `tools/` scripts are atomic pipeline steps. They run in sequence, always together, on a schedule.
+- `subagents/` scripts are complex analytical modules. They run on demand, independently, when the user asks a question that requires deep analysis.
 
 ## Bottom Line
 
