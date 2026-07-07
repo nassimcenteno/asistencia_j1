@@ -27,6 +27,8 @@ EXCEPTIONS = {
     "2026-05-30": {"excluir": ["GDC BETTA VIAJEROS"]},
     # 6/6: GDC BETTA no tuvo sesion
     "2026-06-06": {"excluir": ["GDC BETTA"]},
+    # 4/7: GDC LAMBDA y GDC SIGMA no tuvieron sesion (por acuerdo)
+    "2026-07-04": {"excluir": ["GDC LAMBDA", "GDC SIGMA"]},
 }
 
 EVENTS = {
@@ -35,6 +37,12 @@ EVENTS = {
     "2026-03-21": "Reencuentro Montecamp",
     "2026-05-02": "Apologética",
     "2026-05-16": "El Viaje",
+    "2026-06-20": "Puentes",
+}
+
+# Grupos en hold: sesiones desde esta fecha (inclusive) ya no cuentan.
+GROUP_END_DATES: dict[str, date] = {
+    "GDC BETTA VIAJEROS": date(2026, 6, 27),
 }
 
 
@@ -95,6 +103,12 @@ def session_applies_to_group(session_date: date, group_name: str) -> bool:
         if "excluir" in rule:
             return group_upper not in [g.upper() for g in rule["excluir"]]
     return True
+
+
+def session_before_group_end(session_date: date, group_name: str) -> bool:
+    """False si el grupo esta en hold (GROUP_END_DATES) desde session_date (inclusive)."""
+    end = GROUP_END_DATES.get(group_name.strip().upper())
+    return end is None or session_date < end
 
 
 def main():
@@ -213,6 +227,7 @@ def main():
         g_af = group_af_map.get(grupo_actual.upper())
         effective_af = max(personal_af, g_af) if personal_af and g_af else (personal_af or g_af)
         aplica = (session_applies_to_group(session_date, grupo_actual) and
+                  session_before_group_end(session_date, grupo_actual) and
                   (effective_af is None or session_date >= effective_af))
         personas[persona_key]["sesiones_raw"].append({
             "fecha": session_date.isoformat(),
@@ -230,6 +245,7 @@ def main():
         g: sorted(
             s for s in all_sessions
             if session_applies_to_group(s, g)
+            and session_before_group_end(s, g)
             and (g.upper() not in group_af_map or s >= group_af_map[g.upper()])
         )
         for g in grupos_set
@@ -413,6 +429,7 @@ def main():
         total_aplica = sum(
             1 for p in personas_list
             if session_applies_to_group(d, p["grupo_actual"])
+            and session_before_group_end(d, p["grupo_actual"])
             and (person_active_from[p["id"]] is None
                  or d >= person_active_from[p["id"]])
         )

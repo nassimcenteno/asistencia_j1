@@ -50,6 +50,7 @@ Al agregar una nueva excepción: actualizar aquí Y en `EXCEPTIONS` en `process_
 | **23/05/2026** | GDC BETTA **no** tuvo sesión — excluir de su denominador. |
 | **30/05/2026** | GDC BETTA VIAJEROS **no** tuvo sesión — excluir de su denominador. |
 | **06/06/2026** | GDC BETTA **no** tuvo sesión — excluir de su denominador. |
+| **04/07/2026** | GDC LAMBDA y GDC SIGMA **no** tuvieron sesión (por acuerdo) — excluir de su denominador. |
 
 **Regla por defecto:** Si una fecha no está en excepciones, aplica a TODOS los grupos.
 
@@ -67,6 +68,7 @@ Aparecen como punto naranja en el gráfico de evolución del dashboard.
 | **21/03/2026** | Reencuentro Montecamp |
 | **02/05/2026** | Apologética |
 | **16/05/2026** | El Viaje |
+| **20/06/2026** | Puentes |
 
 ---
 
@@ -127,7 +129,21 @@ Al agregar un nuevo grupo con fecha de inicio: actualizar `GROUP_START_DATES` en
 
 ---
 
-## 11. Fecha de ingreso individual (FECHA_INGRESO)
+## 11. Grupos en hold (GROUP_END_DATES)
+
+Algunos grupos quedan en pausa ("hold") durante el ciclo: dejan de tener sesiones pero sus miembros siguen apareciendo en el reporte. Las sesiones desde la fecha de hold (inclusive) ya NO cuentan ni en el denominador ni en el numerador de sus miembros, ni en el `total_aplica` de la evolución semanal.
+
+| Grupo | Hold desde (inclusive) |
+|---|---|
+| GDC BETTA VIAJEROS | 27/06/2026 |
+
+Aplicación en el código: `session_before_group_end()` en `process_data.py`, usada en el cálculo de `aplica_denominador` por sesión, en `sesiones_por_grupo` y en `total_aplica` de la evolución semanal.
+
+Al poner un grupo en hold: actualizar `GROUP_END_DATES` en `process_data.py` Y esta tabla.
+
+---
+
+## 12. Fecha de ingreso individual (FECHA_INGRESO)
 
 Si una persona tiene la columna `FECHA_INGRESO` con un valor, sus sesiones **solo cuentan desde esa fecha en adelante (inclusive)**.
 
@@ -161,3 +177,6 @@ Al agregar personas nuevas con FECHA_INGRESO: no requiere cambio de código. El 
 | 2026-06 | GROUP_START_DATES LAMBDA y NEW BETTA: fecha actualizada a 16/05 → 4 sesiones (16/5, 23/5, 30/5, 06/6) |
 | 2026-06 | Evento El Viaje (16/05) registrado |
 | 2026-06 | Excepción 6/6: GDC BETTA no tuvo sesión |
+| 2026-07 | GDC BETTA VIAJEROS en hold desde 27/6 (GROUP_END_DATES) |
+| 2026-07 | Excepción 4/7: GDC LAMBDA y GDC SIGMA no tuvieron sesión (por acuerdo) |
+| 2026-07 | Evento Puentes (20/06) registrado |
