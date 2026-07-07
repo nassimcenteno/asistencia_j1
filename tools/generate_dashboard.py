@@ -987,11 +987,11 @@ function openGroupDrilldown(groupName) {{
   if(!members.length)return;
   const g=DATA.grupos.find(x=>x.nombre===groupName)||{{}};
   const sd=g.status_dist||{{}};
-  const dateSet=new Set(members.flatMap(m=>m.sesiones.map(s=>s.fecha)));
+  const dateSet=new Set(members.flatMap(m=>m.sesiones_grupo.map(s=>s.fecha)));
   const dates=[...dateSet].sort();
   const gEv=dates.map(fecha=>{{
-    const tot=members.filter(m=>m.sesiones.some(s=>s.fecha===fecha)).length;
-    const att=members.filter(m=>m.sesiones.some(s=>s.fecha===fecha&&s.asistio)).length;
+    const tot=members.filter(m=>m.sesiones_grupo.some(s=>s.fecha===fecha)).length;
+    const att=members.filter(m=>m.sesiones_grupo.some(s=>s.fecha===fecha&&s.asistio)).length;
     const evento=(DATA.eventos||{{}})[fecha]||null;
     return{{fecha,tot,att,pct:tot>0?Math.round(att/tot*100):0,evento}};
   }});

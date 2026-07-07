@@ -7,7 +7,7 @@ listo para ser consumido por generate_dashboard.py
 import json
 import sys
 from pathlib import Path
-from datetime import datetime, date, timedelta
+from datetime import datetime, date
 from collections import defaultdict
 
 ROOT = Path(__file__).parent.parent
@@ -55,7 +55,7 @@ GROUP_TYPES = {
 # Grupos creados en el ciclo: sesiones cuentan desde su fecha de creación (inclusive).
 GROUP_START_DATES: dict[str, date] = {
     "GDC LAMBDA": date(2026, 5, 16),
-    "GDC NEW BETTA": date(2026, 5, 16),
+    "GDC OMEGA": date(2026, 5, 16),
 }
 
 STATUS_ORDER = ["Fiel", "Activo", "Inconstante", "Inactivo"]
@@ -111,6 +111,18 @@ def session_before_group_end(session_date: date, group_name: str) -> bool:
     return end is None or session_date < end
 
 
+def build_historial(fechas: list[date], fechas_asistidas: set[str]) -> list[dict]:
+    return [
+        {
+            "fecha": d.isoformat(),
+            "asistio": d.isoformat() in fechas_asistidas,
+            "quarter": get_quarter(d),
+            "evento": EVENTS.get(d.isoformat()),
+        }
+        for d in fechas
+    ]
+
+
 def main():
     raw_path = TMP_DIR / "asistencia_raw.json"
     if not raw_path.exists():
@@ -134,14 +146,10 @@ def main():
         cl = col.lower().strip()
         if "grupo_actual" in cl or "grupo actual" in cl:
             col_map["grupo_actual"] = col
-        elif cl == "grupo" and "grupo_actual" not in col_map:
-            col_map["grupo"] = col
         elif cl in ("nom_completo", "nombre_completo"):
             col_map["nombre"] = col
         elif "nombre" in cl and "grupo" not in cl and "nom_completo" not in cl:
             col_map.setdefault("nombre", col)
-        elif "apellido" in cl:
-            col_map["apellido"] = col
         elif "rol" in cl:
             col_map["rol"] = col
         elif "tipo_miembro" in cl or "tipo miembro" in cl:
@@ -156,8 +164,6 @@ def main():
             col_map["fecha_ingreso"] = col
         elif cl == "dni":
             col_map["dni"] = col
-        elif cl == "status" or cl == "estado":
-            col_map["status_raw"] = col
 
     required = ["nombre", "grupo_actual", "fecha"]
     missing = [k for k in required if k not in col_map]
@@ -225,15 +231,19 @@ def main():
         evento = EVENTS.get(session_date.isoformat())
         personal_af = personas[persona_key].get("active_from")
         g_af = group_af_map.get(grupo_actual.upper())
-        effective_af = max(personal_af, g_af) if personal_af and g_af else (personal_af or g_af)
-        aplica = (session_applies_to_group(session_date, grupo_actual) and
-                  session_before_group_end(session_date, grupo_actual) and
-                  (effective_af is None or session_date >= effective_af))
+        effective_af_grupo = max(personal_af, g_af) if personal_af and g_af else (personal_af or g_af)
+        sesion_valida = (session_applies_to_group(session_date, grupo_actual) and
+                          session_before_group_end(session_date, grupo_actual))
+        # Nivel persona: independiente de GROUP_START_DATES, solo su propia FECHA_INGRESO.
+        aplica_persona = sesion_valida and (personal_af is None or session_date >= personal_af)
+        # Nivel grupo: respeta ademas la fecha de inicio del grupo (GROUP_START_DATES).
+        aplica_grupo = sesion_valida and (effective_af_grupo is None or session_date >= effective_af_grupo)
         personas[persona_key]["sesiones_raw"].append({
             "fecha": session_date.isoformat(),
             "quarter": quarter,
             "evento": evento,
-            "aplica_denominador": aplica,
+            "aplica_denominador": aplica_persona,
+            "aplica_grupo": aplica_grupo,
             "asistio": asistio,
         })
 
@@ -241,12 +251,19 @@ def main():
     # Denominadores por grupo
     # ---------------------------------------------------------------------------
     grupos_set = {p["grupo_actual"] for p in personas.values()}
-    sesiones_por_grupo: dict[str, list[date]] = {
+    # Nivel persona: no aplica GROUP_START_DATES (independiente del grupo).
+    sesiones_por_grupo_persona: dict[str, list[date]] = {
         g: sorted(
             s for s in all_sessions
-            if session_applies_to_group(s, g)
-            and session_before_group_end(s, g)
-            and (g.upper() not in group_af_map or s >= group_af_map[g.upper()])
+            if session_applies_to_group(s, g) and session_before_group_end(s, g)
+        )
+        for g in grupos_set
+    }
+    # Nivel grupo: si aplica GROUP_START_DATES (reglas propias del grupo).
+    sesiones_por_grupo: dict[str, list[date]] = {
+        g: sorted(
+            s for s in sesiones_por_grupo_persona[g]
+            if g.upper() not in group_af_map or s >= group_af_map[g.upper()]
         )
         for g in grupos_set
     }
@@ -261,58 +278,57 @@ def main():
         sesiones_raw = p["sesiones_raw"]
         active_from = p.get("active_from")
         fechas_aplican = [
+            d for d in sesiones_por_grupo_persona.get(grupo, [])
+            if active_from is None or d >= active_from
+        ]
+        fechas_grupo = [
             d for d in sesiones_por_grupo.get(grupo, [])
             if active_from is None or d >= active_from
         ]
         fechas_asistidas = {s["fecha"] for s in sesiones_raw if s["asistio"]}
 
+        # Numerador (nivel persona): un solo paso sobre sesiones_raw.
+        total_asistencias = asist_q1 = asist_q2 = 0
+        for s in sesiones_raw:
+            if s["aplica_denominador"] and s["asistio"]:
+                total_asistencias += 1
+                if s["quarter"] == "Q1":
+                    asist_q1 += 1
+                else:
+                    asist_q2 += 1
+
         total_sesiones = len(fechas_aplican)
-        total_asistencias = len([s for s in sesiones_raw if s["aplica_denominador"] and s["asistio"]])
+        total_q1 = sum(1 for d in fechas_aplican if get_quarter(d) == "Q1")
+        total_q2 = total_sesiones - total_q1
+
         pct_total = round(total_asistencias / total_sesiones * 100, 1) if total_sesiones > 0 else 0
-
-        asist_q1 = len([s for s in sesiones_raw if s["quarter"] == "Q1" and s["aplica_denominador"] and s["asistio"]])
-        total_q1 = len([d for d in fechas_aplican if get_quarter(d) == "Q1"])
         pct_q1 = round(asist_q1 / total_q1 * 100, 1) if total_q1 > 0 else 0
-
-        asist_q2 = len([s for s in sesiones_raw if s["quarter"] == "Q2" and s["aplica_denominador"] and s["asistio"]])
-        total_q2 = len([d for d in fechas_aplican if get_quarter(d) == "Q2"])
         pct_q2 = round(asist_q2 / total_q2 * 100, 1) if total_q2 > 0 else 0
 
         status = get_status(pct_total)
         status_q1 = get_status(pct_q1) if total_q1 > 0 else None
         status_q2 = get_status(pct_q2) if total_q2 > 0 else None
 
-        # Historial completo
-        historial = [
-            {
-                "fecha": d.isoformat(),
-                "asistio": d.isoformat() in fechas_asistidas,
-                "quarter": get_quarter(d),
-                "evento": EVENTS.get(d.isoformat()),
-            }
-            for d in fechas_aplican
-        ]
+        # Nivel persona (sin GROUP_START_DATES) y nivel grupo (con GROUP_START_DATES, usado en drilldown de grupo).
+        historial = build_historial(fechas_aplican, fechas_asistidas)
+        historial_grupo = build_historial(fechas_grupo, fechas_asistidas)
 
         # En riesgo: 0 asistencias en las ultimas 4 sesiones que aplican al grupo (dinamico)
-        last4_fechas = {d.isoformat() for d in sorted(fechas_aplican)[-4:]}
-        at_risk = len(last4_fechas) > 0 and not any(
-            h["asistio"] for h in historial if h["fecha"] in last4_fechas
-        )
+        last4_fechas = {h["fecha"] for h in historial[-4:]}
+        at_risk = len(last4_fechas) > 0 and not any(h["asistio"] for h in historial if h["fecha"] in last4_fechas)
 
         # Ultima asistencia
-        fechas_asistidas_sorted = sorted(fechas_asistidas, reverse=True)
-        ultima_asistencia = fechas_asistidas_sorted[0] if fechas_asistidas_sorted else None
+        ultima_asistencia = max(fechas_asistidas) if fechas_asistidas else None
 
         # Racha actual: positivo = semanas asistidas consecutivas, negativo = semanas ausentes
-        hist_desc = sorted(historial, key=lambda x: x["fecha"], reverse=True)
         racha_actual = 0
-        if hist_desc:
-            going = hist_desc[0]["asistio"]
-            for h in hist_desc:
-                if h["asistio"] == going:
-                    racha_actual += 1 if going else -1
-                else:
-                    break
+        for h in reversed(historial):
+            if racha_actual == 0:
+                racha_actual = 1 if h["asistio"] else -1
+            elif (racha_actual > 0) == h["asistio"]:
+                racha_actual += 1 if h["asistio"] else -1
+            else:
+                break
 
         personas_list.append({
             "id": p["id"],
@@ -324,6 +340,7 @@ def main():
             "tipo_grupo": p["tipo_grupo"],
             "fecha_ingreso": p.get("fecha_ingreso"),
             "sesiones": historial,
+            "sesiones_grupo": historial_grupo,
             "total_sesiones": total_sesiones,
             "total_asistencias": total_asistencias,
             "pct_total": pct_total,
@@ -354,17 +371,22 @@ def main():
 
     for p in personas_list:
         g = p["grupo_actual"]
-        grupos_stats[g]["total_asistencias"] += p["total_asistencias"]
-        grupos_stats[g]["total_posibles"] += p["total_sesiones"]
-        grupos_stats[g]["asist_q1"] += p["asist_q1"]
-        grupos_stats[g]["posibles_q1"] += p["total_q1"]
-        grupos_stats[g]["asist_q2"] += p["asist_q2"]
-        grupos_stats[g]["posibles_q2"] += p["total_q2"]
-        grupos_stats[g]["status_dist"][p["status"]] += 1
-        grupos_stats[g]["tipo_grupo"] = p.get("tipo_grupo", "")
-        grupos_stats[g]["num_total"] += 1
+        s = grupos_stats[g]
+        s["tipo_grupo"] = p.get("tipo_grupo", "")
+        s["num_total"] += 1
+        s["status_dist"][p["status"]] += 1
         if p["es_miembro"]:
-            grupos_stats[g]["num_miembros_formales"] += 1
+            s["num_miembros_formales"] += 1
+
+        for sesion in personas[p["id"]]["sesiones_raw"]:
+            if not sesion["aplica_grupo"]:
+                continue
+            s["total_posibles"] += 1
+            q1 = sesion["quarter"] == "Q1"
+            s["posibles_q1" if q1 else "posibles_q2"] += 1
+            if sesion["asistio"]:
+                s["total_asistencias"] += 1
+                s["asist_q1" if q1 else "asist_q2"] += 1
 
     grupos_list = []
     for g, s in grupos_stats.items():
@@ -410,15 +432,11 @@ def main():
     # ---------------------------------------------------------------------------
     # Evolucion semanal
     # ---------------------------------------------------------------------------
+    # Evolucion global: bottom-up desde personas, independiente de GROUP_START_DATES.
     person_active_from = {}
     for p in personas_list:
         fi = p.get("fecha_ingreso")
-        af = get_active_from(parse_date(fi)) if fi else None
-        gs = GROUP_START_DATES.get(p["grupo_actual"].upper())
-        if gs:
-            gaf = get_active_from(gs)
-            af = max(af, gaf) if af else gaf
-        person_active_from[p["id"]] = af
+        person_active_from[p["id"]] = get_active_from(parse_date(fi)) if fi else None
 
     evolucion = []
     for d in sorted(all_sessions):

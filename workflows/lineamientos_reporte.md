@@ -111,25 +111,38 @@ Cualquier otro valor (o vacío) = no es miembro formal.
 
 ---
 
-## 10. Fecha de inicio de grupos (GROUP_START_DATES)
+## 10. Separación de conceptos: persona vs. grupo vs. global
 
-Algunos grupos fueron creados durante el ciclo y no existían desde el inicio. Estos grupos tienen una fecha de inicio codificada en `GROUP_START_DATES` en `process_data.py`. Las sesiones anteriores a esa fecha no cuentan para sus miembros, no afectan la evolución global, y la columna **Sesiones** en la tabla de grupos refleja solo las sesiones desde ese punto (inclusive).
+**Regla de arquitectura (desde 2026-07):** el pipeline calcula tres cosas de forma independiente, cada una con sus propias reglas:
+
+1. **Nivel persona** (`total_sesiones`, `pct_total`, `historial`, `at_risk`, `racha_actual`, status): se basa **únicamente** en su propia `FECHA_INGRESO` (si la tiene) + `EXCEPTIONS` + hold del grupo (`GROUP_END_DATES`). **No aplica `GROUP_START_DATES`.** Refleja la trayectoria real de la persona, sin importar cómo se llama o cuándo se creó su grupo actual.
+2. **Nivel grupo** (tabla de grupos: `sesiones_totales`, `pct_asistencia`, `pct_q1`, `pct_q2`): sí aplica `GROUP_START_DATES` (además de `EXCEPTIONS` y hold). Se calcula de forma independiente — **ya no es la suma de los totales de cada persona** — usando el flag interno `aplica_grupo` por sesión, que combina la fecha de inicio del grupo con la `FECHA_INGRESO` de cada miembro (lo que sea más tardío).
+3. **Nivel global** (evolución semanal, % general): se calcula bottom-up desde las personas (nivel 1), por lo tanto tampoco aplica `GROUP_START_DATES`.
+
+**Por qué:** el Sheet solo tiene la columna `GRUPO_ACTUAL` (el grupo de hoy), no un histórico de grupo por fecha. Si una persona lleva tiempo en J1 pero fue reasignada a un grupo recién creado o renombrado, aplicarle la fecha de inicio del grupo le borraría asistencia real de su historial. Separar los tres niveles evita ese problema sin perder la utilidad de `GROUP_START_DATES` para medir el desempeño del grupo desde que existe. Cuando se agregue una columna de grupo histórico por fecha, se podrá revisar esta lógica.
+
+## 11. Fecha de inicio de grupos (GROUP_START_DATES) — solo nivel grupo
+
+Algunos grupos fueron creados durante el ciclo y no existían desde el inicio. Estos grupos tienen una fecha de inicio codificada en `GROUP_START_DATES` en `process_data.py`. Esto solo afecta las métricas **de grupo** (sección 10, nivel 2): la columna **Sesiones** y el % de asistencia en la tabla de grupos reflejan solo las sesiones desde ese punto (inclusive). No afecta el % ni el historial individual de sus miembros.
 
 | Grupo | Fecha de creación | Active from |
 |---|---|---|
 | GDC LAMBDA | 16/05/2026 | 16/05/2026 |
-| GDC NEW BETTA | 16/05/2026 | 16/05/2026 |
+| GDC OMEGA (antes "GDC NEW BETTA") | 16/05/2026 | 16/05/2026 |
+
+**Importante:** la clave en `GROUP_START_DATES` debe coincidir con el `GRUPO_ACTUAL` vigente en el Sheet. Si un grupo cambia de nombre (como pasó con NEW BETTA → OMEGA), hay que actualizar la clave aquí Y en el código, o la regla deja de aplicarse silenciosamente (sin error).
 
 Aplicación en el código:
-- `group_af_map` se computa antes del loop de filas y se usa en `aplica_denominador` (numerador)
-- `sesiones_por_grupo` también aplica `group_af_map` al construirse → `sesiones_totales` correcto en tabla de grupos
-- `person_active_from` en la evolución combina GROUP_START_DATES + FECHA_INGRESO personal (safeguard doble)
+- `group_af_map` se computa antes del loop de filas
+- `aplica_grupo` (por sesión) combina `group_af_map` con la `FECHA_INGRESO` de cada persona → usado para agregar las métricas de grupo
+- `sesiones_por_grupo` (con `GROUP_START_DATES`) → `sesiones_totales` en la tabla de grupos
+- `sesiones_por_grupo_persona` (sin `GROUP_START_DATES`) → historial y denominador de cada persona
 
-Al agregar un nuevo grupo con fecha de inicio: actualizar `GROUP_START_DATES` en `process_data.py` Y esta tabla.
+Al agregar un nuevo grupo con fecha de inicio, o renombrar uno existente: actualizar `GROUP_START_DATES` en `process_data.py` Y esta tabla.
 
 ---
 
-## 11. Grupos en hold (GROUP_END_DATES)
+## 12. Grupos en hold (GROUP_END_DATES)
 
 Algunos grupos quedan en pausa ("hold") durante el ciclo: dejan de tener sesiones pero sus miembros siguen apareciendo en el reporte. Las sesiones desde la fecha de hold (inclusive) ya NO cuentan ni en el denominador ni en el numerador de sus miembros, ni en el `total_aplica` de la evolución semanal.
 
@@ -143,7 +156,7 @@ Al poner un grupo en hold: actualizar `GROUP_END_DATES` en `process_data.py` Y e
 
 ---
 
-## 12. Fecha de ingreso individual (FECHA_INGRESO)
+## 13. Fecha de ingreso individual (FECHA_INGRESO)
 
 Si una persona tiene la columna `FECHA_INGRESO` con un valor, sus sesiones **solo cuentan desde esa fecha en adelante (inclusive)**.
 
@@ -180,3 +193,4 @@ Al agregar personas nuevas con FECHA_INGRESO: no requiere cambio de código. El 
 | 2026-07 | GDC BETTA VIAJEROS en hold desde 27/6 (GROUP_END_DATES) |
 | 2026-07 | Excepción 4/7: GDC LAMBDA y GDC SIGMA no tuvieron sesión (por acuerdo) |
 | 2026-07 | Evento Puentes (20/06) registrado |
+| 2026-07 | Refactor: separación persona/grupo/global. GROUP_START_DATES ya no afecta el historial ni % individual, solo la métrica del grupo. Fix: clave GDC NEW BETTA → GDC OMEGA (el grupo se renombró y la regla dejó de aplicarse) |
