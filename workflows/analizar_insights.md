@@ -65,11 +65,12 @@ Los archivos anteriores se conservan en `reports/` — nunca se sobreescriben.
 
 ## Notas de interpretación (no alucinar contexto)
 
-- **Delta Q2 negativo en LAMBDA / NEW BETTA**: esperado. Son grupos creados el 16/05, solo tienen sesiones desde esa fecha. Su denominador Q2 es menor → % puede parecer bajo vs grupos con todo el ciclo.
+- **Delta Q2 negativo en LAMBDA / OMEGA (antes "NEW BETTA")**: esperado. Son grupos creados el 16/05, solo tienen sesiones desde esa fecha a nivel GRUPO. Su denominador Q2 es menor → % puede parecer bajo vs grupos con todo el ciclo.
 - **pct_q1 = "—" en grupos nuevos**: correcto, no tenían sesiones en Q1.
 - **Momentum matrix**: solo incluye personas con sesiones en AMBOS quarters. Personas con solo Q2 (nuevos ingresos tardíos) NO aparecen.
 - **Racha positiva**: sesiones consecutivas asistidas. Racha negativa: sesiones consecutivas ausentes.
 - **at_risk**: definido como 0 asistencias en las últimas 4 sesiones que aplican al grupo. Es dinámico.
+- **Ojo con `total_sesiones` a nivel persona vs. nivel grupo (desde 2026-07):** `p["total_sesiones"]`/`p["sesiones"]` reflejan el historial de la PERSONA (independiente de `GROUP_START_DATES` — cuenta desde su propia `FECHA_INGRESO`, o desde el inicio del ciclo si no tiene). Este sub-agente agrega esos campos por grupo (`gr["sesiones_total"]`), así que su "semáforo de grupos" puede diferir del número que muestra el dashboard principal (que calcula el nivel grupo por separado, aplicando `GROUP_START_DATES`). Si una pregunta requiere el número oficial de sesiones de un grupo, usar el dashboard (`d["grupos"]`), no este reporte.
 
 ---
 
