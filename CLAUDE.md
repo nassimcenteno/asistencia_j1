@@ -70,11 +70,11 @@ workflows/      # Markdown SOPs — one per major process or sub-agent
                 #   analizar_insights.md          → sub_insights invocation SOP
 
 skills/         # Reference documents that extend Claude's capabilities (not SOPs, not scripts)
-                #   DESIGN_SKILL.md → UI/UX standards for dashboards and reports
 
 config/         # Google auth credentials (gitignored)
 .tmp/           # Ephemeral pipeline outputs (regenerated as needed, mostly gitignored)
 .env            # API keys and environment variables (NEVER store secrets anywhere else)
+.claude/MEMORY.md  # Official project memory — see "Project Memory" below
 ```
 
 **Core principle:** Local files are just for processing. Anything I need to see or use lives in cloud services. Everything in `.tmp/` is disposable. Sub-agent reports in `subagents/*/reports/` are also ephemeral — regenerate on demand.
@@ -82,6 +82,16 @@ config/         # Google auth credentials (gitignored)
 **tools/ vs subagents/:**
 - `tools/` scripts are atomic pipeline steps. They run in sequence, always together, on a schedule.
 - `subagents/` scripts are complex analytical modules. They run on demand, independently, when the user asks a question that requires deep analysis.
+
+## Project Memory
+
+`.claude/MEMORY.md` is the **official, versioned memory of this project** — the source of truth for its architecture, business-rule summaries, and technical learnings, shared with anyone who clones this repo. It is separate from and takes priority over any personal cross-session memory you may hold for this user: if the two ever disagree, `.claude/MEMORY.md` wins.
+
+Update it constantly, not just when asked:
+- After any change to the pipeline's structure, business rules, or file layout
+- After fixing a bug or edge case worth remembering (e.g. a silent failure mode)
+- After a refactor that changes how data flows between `tools/` scripts
+- Keep it in sync with `workflows/lineamientos_reporte.md` when business rules change — they should never drift apart
 
 ## Bottom Line
 
