@@ -1,6 +1,7 @@
 # MEMORY — Reporte Asistencia J1
 
 > Lee este archivo al inicio de cada sesión para tener contexto completo del proyecto.
+> Este archivo es la **memoria oficial y versionada del proyecto** (ver `CLAUDE.md` → "Project Memory"). Tiene prioridad sobre cualquier memoria personal entre sesiones si ambas difieren. Actualízalo constantemente — no solo cuando el usuario lo pida — tras cambios de estructura, reglas de negocio, o bugs/aprendizajes relevantes.
 
 ## Contexto
 Automatización del control de asistencia semanal del grupo J1 (jóvenes) de la Alianza de Monterrico, Lima, Perú.
@@ -15,8 +16,7 @@ Se genera automáticamente los **lunes y martes 9am Lima** via GitHub Actions.
 ```
 config/                        ← Credenciales (gitignored, NUNCA subir)
   service_account.json         ← Auth local para Google Sheets (sin browser)
-  credentials.json             ← OAuth legacy (no se usa en producción)
-  token.json                   ← OAuth token legacy
+  (credentials.json y token.json OAuth legacy eliminados 2026-07 — ya no se usaban)
 
 tools/                         ← Scripts Python deterministas
   fetch_sheets_data.py         ← Google Sheets → .tmp/asistencia_raw.json
@@ -41,6 +41,8 @@ workflows/                     ← SOPs en Markdown
 .github/workflows/reporte.yml  ← GitHub Actions (schedule lunes+martes 14:00 UTC)
 .env                           ← SHEET_ID, SHEET_NAME (gitignored)
 ```
+
+**Nota:** `skills/DESIGN_SKILL.md` fue eliminado (2026-07) — la carpeta `skills/` sigue existiendo en `CLAUDE.md` como concepto pero hoy está vacía. Si se necesitan estándares de UI/UX para el dashboard, evaluar recrearla.
 
 ---
 
@@ -123,3 +125,5 @@ El pipeline separa 3 cálculos independientes — ver sección 10 de `lineamient
 | 2026-05 | VSCode HTML preview bloquea CDN/JS → siempre probar en Chrome/Edge |
 | 2026-07 | Separación persona/grupo/global (ver arriba) — refactor grande, verificado con diff exacto del JSON de salida antes/después de limpiar el código |
 | 2026-07 | `process_data.py` limpiado: sin imports muertos, sin detecciones de columna sin uso (`apellido`, `status_raw`, `grupo` histórica), `grupos_stats` y totales por persona en un solo paso en vez de múltiples list comprehensions redundantes |
+| 2026-07 | Limpieza de repo: `skills/DESIGN_SKILL.md` eliminado y commiteado; `config/credentials.json` y `config/token.json` (OAuth legacy, nunca trackeados en git, sin referencias en código) borrados localmente. `CLAUDE.md` formaliza este archivo (`.claude/MEMORY.md`) como memoria oficial del proyecto |
+| 2026-07 | Reorg de grupos en el Sheet: `GDA USIL [TBD]` → `GDA USIL` (rename simple, sin código hardcodeado que tocar). `GDC EPSILON` y `GDA FAITH` se disolvieron intencionalmente, miembros repartidos en otros grupos. Grupos nuevos `GDC ETA` y `GDA ULIMA` formados con gente antigua de J1 → por decisión del usuario, NO llevan entrada en `GROUP_START_DATES` (a diferencia de LAMBDA/OMEGA que sí la llevan por ser cohortes nuevas). Detalle completo en `workflows/lineamientos_reporte.md` → Historial de cambios |
