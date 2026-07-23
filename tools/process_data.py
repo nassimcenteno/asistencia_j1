@@ -38,6 +38,8 @@ EVENTS = {
     "2026-05-02": "Apologética",
     "2026-05-16": "El Viaje",
     "2026-06-20": "Puentes",
+    "2026-07-11": "EJEC",
+    "2026-07-18": "Reencuentro EJEC",
 }
 
 # Grupos en hold: sesiones desde esta fecha (inclusive) ya no cuentan.

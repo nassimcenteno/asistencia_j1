@@ -69,6 +69,8 @@ Aparecen como punto naranja en el gráfico de evolución del dashboard.
 | **02/05/2026** | Apologética |
 | **16/05/2026** | El Viaje |
 | **20/06/2026** | Puentes |
+| **11/07/2026** | EJEC |
+| **18/07/2026** | Reencuentro EJEC |
 
 ---
 
@@ -195,3 +197,4 @@ Al agregar personas nuevas con FECHA_INGRESO: no requiere cambio de código. El 
 | 2026-07 | Evento Puentes (20/06) registrado |
 | 2026-07 | Refactor: separación persona/grupo/global. GROUP_START_DATES ya no afecta el historial ni % individual, solo la métrica del grupo. Fix: clave GDC NEW BETTA → GDC OMEGA (el grupo se renombró y la regla dejó de aplicarse) |
 | 2026-07 | Reorg de grupos GDA/GDC: rename `GDA USIL [TBD]` → `GDA USIL` (mismo grupo, sin cambio de código — ningún nombre de grupo está hardcodeado en `process_data.py`, todo viene de `GRUPO_ACTUAL` dinámicamente). `GDC EPSILON` y `GDA FAITH` se disolvieron intencionalmente y sus miembros se redistribuyeron entre otros grupos existentes (DELTA, LAMBDA, PHI, USIL, HOLY, SIGMA, ULIMA, entre otros). Aparecen dos grupos nuevos, `GDC ETA` y `GDA ULIMA`, formados con gente que ya llevaba tiempo en J1 (no cohortes nuevas) — por decisión del usuario, **no** se les agrega entrada en `GROUP_START_DATES`: sus sesiones de grupo cuentan desde el inicio del ciclo igual que los grupos históricos, y cada persona sigue limitada por su propia `FECHA_INGRESO` como siempre. |
+| 2026-07-23 | Eventos EJEC (11/07) y Reencuentro EJEC (18/07) registrados en `EVENTS` — esas fechas tenían asistencia baja inicial porque el Sheet no estaba completo al momento del fetch; al recargarse, la asistencia subió a niveles normales y ahora aparecen marcadas como evento en el gráfico de evolución. |
