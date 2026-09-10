@@ -20,16 +20,15 @@ TMP_DIR = ROOT / ".tmp"
 EXCEPTIONS = {
     # 11/4: solo GDC BETTA, GDC BETTA VIAJEROS y GDC SIGMA tuvieron sesion
     "2026-04-11": {"todos_menos": ["GDC BETTA", "GDC BETTA VIAJEROS", "GDC SIGMA"]},
-    # 2/5 y 23/5: GDC BETTA no tuvo sesion
-    "2026-05-02": {"excluir": ["GDC BETTA"]},
-    "2026-05-23": {"excluir": ["GDC BETTA"]},
-    # 30/5: GDC BETTA VIAJEROS no tuvo sesion
-    "2026-05-30": {"excluir": ["GDC BETTA VIAJEROS"]},
-    # 6/6: GDC BETTA no tuvo sesion
-    "2026-06-06": {"excluir": ["GDC BETTA"]},
     # 4/7: GDC LAMBDA y GDC SIGMA no tuvieron sesion (por acuerdo)
     "2026-07-04": {"excluir": ["GDC LAMBDA", "GDC SIGMA"]},
 }
+
+# Grupos donde la asistencia manda: en una fecha con 0 asistentes se asume que NO hubo
+# sesion esa semana (se excluye del denominador y del conteo de sesiones del grupo);
+# si hubo al menos 1 asistente, la sesion cuenta. Es dinamico y retroactivo: reemplaza
+# tanto el hold como las excepciones manuales por fecha que antes llevaban estos grupos.
+ATTENDANCE_DRIVEN_GROUPS = {"GDC BETTA", "GDC BETTA VIAJEROS"}
 
 EVENTS = {
     "2026-02-28": "JADAK",
@@ -40,13 +39,9 @@ EVENTS = {
     "2026-06-20": "Puentes",
     "2026-07-11": "EJEC",
     "2026-07-18": "Reencuentro EJEC",
+    "2026-08-15": "J-Fest",
+    "2026-09-05": "Alaba",
 }
-
-# Grupos en hold: sesiones desde esta fecha (inclusive) ya no cuentan.
-GROUP_END_DATES: dict[str, date] = {
-    "GDC BETTA VIAJEROS": date(2026, 6, 27),
-}
-
 
 GROUP_TYPES = {
     "GBU": "Grupos Universitarios",
@@ -60,7 +55,7 @@ GROUP_START_DATES: dict[str, date] = {
     "GDC OMEGA": date(2026, 5, 16),
 }
 
-STATUS_ORDER = ["Fiel", "Activo", "Inconstante", "Inactivo"]
+QUARTERS = ["Q1", "Q2", "Q3"]
 
 
 def get_active_from(ingreso: date) -> date:
@@ -69,7 +64,12 @@ def get_active_from(ingreso: date) -> date:
 
 
 def get_quarter(d: date) -> str:
-    return "Q1" if d.month <= 3 else "Q2"
+    """Q1: ene-mar | Q2: abr-jul | Q3: ago en adelante."""
+    if d.month <= 3:
+        return "Q1"
+    if d.month <= 7:
+        return "Q2"
+    return "Q3"
 
 
 def parse_date(val) -> date | None:
@@ -105,12 +105,6 @@ def session_applies_to_group(session_date: date, group_name: str) -> bool:
         if "excluir" in rule:
             return group_upper not in [g.upper() for g in rule["excluir"]]
     return True
-
-
-def session_before_group_end(session_date: date, group_name: str) -> bool:
-    """False si el grupo esta en hold (GROUP_END_DATES) desde session_date (inclusive)."""
-    end = GROUP_END_DATES.get(group_name.strip().upper())
-    return end is None or session_date < end
 
 
 def build_historial(fechas: list[date], fechas_asistidas: set[str]) -> list[dict]:
@@ -182,6 +176,8 @@ def main():
     personas: dict = {}
     all_sessions: set[date] = set()
     group_af_map = {g: get_active_from(d) for g, d in GROUP_START_DATES.items()}
+    # (grupo_upper, fecha_iso) -> nro de asistentes de ese grupo esa fecha.
+    group_attendance: dict[tuple[str, str], int] = defaultdict(int)
 
     for row in rows:
         grupo_actual = str(row.get(col_map["grupo_actual"], "")).strip()
@@ -204,6 +200,8 @@ def main():
             asistio = True
 
         all_sessions.add(session_date)
+        if asistio:
+            group_attendance[(grupo_actual.strip().upper(), session_date.isoformat())] += 1
 
         dni = str(row.get(col_map.get("dni", ""), "")).strip()
         persona_key = f"{full_name.lower()}|{dni}" if dni else full_name.lower()
@@ -229,25 +227,40 @@ def main():
                 "sesiones_raw": [],
             }
 
-        quarter = get_quarter(session_date)
-        evento = EVENTS.get(session_date.isoformat())
-        personal_af = personas[persona_key].get("active_from")
-        g_af = group_af_map.get(grupo_actual.upper())
-        effective_af_grupo = max(personal_af, g_af) if personal_af and g_af else (personal_af or g_af)
-        sesion_valida = (session_applies_to_group(session_date, grupo_actual) and
-                          session_before_group_end(session_date, grupo_actual))
-        # Nivel persona: independiente de GROUP_START_DATES, solo su propia FECHA_INGRESO.
-        aplica_persona = sesion_valida and (personal_af is None or session_date >= personal_af)
-        # Nivel grupo: respeta ademas la fecha de inicio del grupo (GROUP_START_DATES).
-        aplica_grupo = sesion_valida and (effective_af_grupo is None or session_date >= effective_af_grupo)
         personas[persona_key]["sesiones_raw"].append({
             "fecha": session_date.isoformat(),
-            "quarter": quarter,
-            "evento": evento,
-            "aplica_denominador": aplica_persona,
-            "aplica_grupo": aplica_grupo,
+            "quarter": get_quarter(session_date),
+            "evento": EVENTS.get(session_date.isoformat()),
             "asistio": asistio,
         })
+
+    # ---------------------------------------------------------------------------
+    # Validez de cada sesion por grupo (necesita el mapa de asistencia completo)
+    # ---------------------------------------------------------------------------
+    def group_had_session(group_name: str, session_date: date) -> bool:
+        """Para grupos en ATTENDANCE_DRIVEN_GROUPS: hubo sesion solo si asistio >= 1 esa fecha."""
+        gu = group_name.strip().upper()
+        if gu in ATTENDANCE_DRIVEN_GROUPS:
+            return group_attendance.get((gu, session_date.isoformat()), 0) > 0
+        return True
+
+    def session_valid_for_group(session_date: date, group_name: str) -> bool:
+        return (session_applies_to_group(session_date, group_name)
+                and group_had_session(group_name, session_date))
+
+    # Marcar aplica_denominador / aplica_grupo en cada sesion de cada persona.
+    for p in personas.values():
+        grupo = p["grupo_actual"]
+        personal_af = p.get("active_from")
+        g_af = group_af_map.get(grupo.upper())
+        effective_af_grupo = max(personal_af, g_af) if personal_af and g_af else (personal_af or g_af)
+        for s in p["sesiones_raw"]:
+            sd = date.fromisoformat(s["fecha"])
+            valida = session_valid_for_group(sd, grupo)
+            # Nivel persona: independiente de GROUP_START_DATES, solo su propia FECHA_INGRESO.
+            s["aplica_denominador"] = valida and (personal_af is None or sd >= personal_af)
+            # Nivel grupo: respeta ademas la fecha de inicio del grupo (GROUP_START_DATES).
+            s["aplica_grupo"] = valida and (effective_af_grupo is None or sd >= effective_af_grupo)
 
     # ---------------------------------------------------------------------------
     # Denominadores por grupo
@@ -255,10 +268,7 @@ def main():
     grupos_set = {p["grupo_actual"] for p in personas.values()}
     # Nivel persona: no aplica GROUP_START_DATES (independiente del grupo).
     sesiones_por_grupo_persona: dict[str, list[date]] = {
-        g: sorted(
-            s for s in all_sessions
-            if session_applies_to_group(s, g) and session_before_group_end(s, g)
-        )
+        g: sorted(s for s in all_sessions if session_valid_for_group(s, g))
         for g in grupos_set
     }
     # Nivel grupo: si aplica GROUP_START_DATES (reglas propias del grupo).
@@ -290,26 +300,26 @@ def main():
         fechas_asistidas = {s["fecha"] for s in sesiones_raw if s["asistio"]}
 
         # Numerador (nivel persona): un solo paso sobre sesiones_raw.
-        total_asistencias = asist_q1 = asist_q2 = 0
+        asist_q = {q: 0 for q in QUARTERS}
+        total_asistencias = 0
         for s in sesiones_raw:
             if s["aplica_denominador"] and s["asistio"]:
                 total_asistencias += 1
-                if s["quarter"] == "Q1":
-                    asist_q1 += 1
-                else:
-                    asist_q2 += 1
+                asist_q[s["quarter"]] += 1
 
         total_sesiones = len(fechas_aplican)
-        total_q1 = sum(1 for d in fechas_aplican if get_quarter(d) == "Q1")
-        total_q2 = total_sesiones - total_q1
+        total_q = {q: 0 for q in QUARTERS}
+        for d in fechas_aplican:
+            total_q[get_quarter(d)] += 1
 
         pct_total = round(total_asistencias / total_sesiones * 100, 1) if total_sesiones > 0 else 0
-        pct_q1 = round(asist_q1 / total_q1 * 100, 1) if total_q1 > 0 else 0
-        pct_q2 = round(asist_q2 / total_q2 * 100, 1) if total_q2 > 0 else 0
+        pct_q = {
+            q: round(asist_q[q] / total_q[q] * 100, 1) if total_q[q] > 0 else 0
+            for q in QUARTERS
+        }
 
         status = get_status(pct_total)
-        status_q1 = get_status(pct_q1) if total_q1 > 0 else None
-        status_q2 = get_status(pct_q2) if total_q2 > 0 else None
+        status_q = {q: get_status(pct_q[q]) if total_q[q] > 0 else None for q in QUARTERS}
 
         # Nivel persona (sin GROUP_START_DATES) y nivel grupo (con GROUP_START_DATES, usado en drilldown de grupo).
         historial = build_historial(fechas_aplican, fechas_asistidas)
@@ -346,15 +356,19 @@ def main():
             "total_sesiones": total_sesiones,
             "total_asistencias": total_asistencias,
             "pct_total": pct_total,
-            "pct_q1": pct_q1,
-            "pct_q2": pct_q2,
-            "asist_q1": asist_q1,
-            "total_q1": total_q1,
-            "asist_q2": asist_q2,
-            "total_q2": total_q2,
+            "pct_q1": pct_q["Q1"],
+            "pct_q2": pct_q["Q2"],
+            "pct_q3": pct_q["Q3"],
+            "asist_q1": asist_q["Q1"],
+            "total_q1": total_q["Q1"],
+            "asist_q2": asist_q["Q2"],
+            "total_q2": total_q["Q2"],
+            "asist_q3": asist_q["Q3"],
+            "total_q3": total_q["Q3"],
             "status": status,
-            "status_q1": status_q1,
-            "status_q2": status_q2,
+            "status_q1": status_q["Q1"],
+            "status_q2": status_q["Q2"],
+            "status_q3": status_q["Q3"],
             "at_risk": at_risk,
             "ultima_asistencia": ultima_asistencia,
             "racha_actual": racha_actual,
@@ -365,8 +379,8 @@ def main():
     # ---------------------------------------------------------------------------
     grupos_stats: dict = defaultdict(lambda: {
         "total_asistencias": 0, "total_posibles": 0,
-        "asist_q1": 0, "posibles_q1": 0,
-        "asist_q2": 0, "posibles_q2": 0,
+        "asist_q": {q: 0 for q in QUARTERS},
+        "posibles_q": {q: 0 for q in QUARTERS},
         "status_dist": defaultdict(int),
         "tipo_grupo": "", "num_miembros_formales": 0, "num_total": 0,
     })
@@ -383,19 +397,23 @@ def main():
         for sesion in personas[p["id"]]["sesiones_raw"]:
             if not sesion["aplica_grupo"]:
                 continue
+            q = sesion["quarter"]
             s["total_posibles"] += 1
-            q1 = sesion["quarter"] == "Q1"
-            s["posibles_q1" if q1 else "posibles_q2"] += 1
+            s["posibles_q"][q] += 1
             if sesion["asistio"]:
                 s["total_asistencias"] += 1
-                s["asist_q1" if q1 else "asist_q2"] += 1
+                s["asist_q"][q] += 1
 
     grupos_list = []
     for g, s in grupos_stats.items():
         pct = round(s["total_asistencias"] / s["total_posibles"] * 100, 1) if s["total_posibles"] > 0 else 0
-        pct_q1 = round(s["asist_q1"] / s["posibles_q1"] * 100, 1) if s["posibles_q1"] > 0 else 0
-        pct_q2 = round(s["asist_q2"] / s["posibles_q2"] * 100, 1) if s["posibles_q2"] > 0 else 0
+        pct_q = {
+            q: round(s["asist_q"][q] / s["posibles_q"][q] * 100, 1) if s["posibles_q"][q] > 0 else 0
+            for q in QUARTERS
+        }
         pct_membresia = round(s["num_miembros_formales"] / s["num_total"] * 100, 1) if s["num_total"] > 0 else 0
+        fechas_grupo = sesiones_por_grupo.get(g, [])
+        sesiones_q = {q: sum(1 for d in fechas_grupo if get_quarter(d) == q) for q in QUARTERS}
         grupos_list.append({
             "nombre": g,
             "tipo_grupo": s["tipo_grupo"],
@@ -403,10 +421,21 @@ def main():
             "num_miembros_formales": s["num_miembros_formales"],
             "pct_membresia": pct_membresia,
             "pct_asistencia": pct,
-            "pct_q1": pct_q1,
-            "pct_q2": pct_q2,
+            "pct_q1": pct_q["Q1"],
+            "pct_q2": pct_q["Q2"],
+            "pct_q3": pct_q["Q3"],
+            # Conteos por quarter — para que el dashboard combine quarters (filtro global) con sumas simples.
+            "asist_q1": s["asist_q"]["Q1"],
+            "asist_q2": s["asist_q"]["Q2"],
+            "asist_q3": s["asist_q"]["Q3"],
+            "posibles_q1": s["posibles_q"]["Q1"],
+            "posibles_q2": s["posibles_q"]["Q2"],
+            "posibles_q3": s["posibles_q"]["Q3"],
+            "sesiones_q1": sesiones_q["Q1"],
+            "sesiones_q2": sesiones_q["Q2"],
+            "sesiones_q3": sesiones_q["Q3"],
             "status_dist": dict(s["status_dist"]),
-            "sesiones_totales": len(sesiones_por_grupo.get(g, [])),
+            "sesiones_totales": len(fechas_grupo),
         })
 
     grupos_list.sort(key=lambda x: x["pct_asistencia"], reverse=True)
@@ -448,8 +477,7 @@ def main():
         )
         total_aplica = sum(
             1 for p in personas_list
-            if session_applies_to_group(d, p["grupo_actual"])
-            and session_before_group_end(d, p["grupo_actual"])
+            if session_valid_for_group(d, p["grupo_actual"])
             and (person_active_from[p["id"]] is None
                  or d >= person_active_from[p["id"]])
         )
@@ -461,16 +489,6 @@ def main():
             "total_aplica": total_aplica,
             "pct": round(asistentes / total_aplica * 100, 1) if total_aplica > 0 else 0,
         })
-
-    # ---------------------------------------------------------------------------
-    # Matriz de transicion Q1 -> Q2
-    # ---------------------------------------------------------------------------
-    status_matrix: dict = {s1: {s2: 0 for s2 in STATUS_ORDER} for s1 in STATUS_ORDER}
-    for p in personas_list:
-        s1 = p["status_q1"]
-        s2 = p["status_q2"]
-        if s1 and s2:
-            status_matrix[s1][s2] += 1
 
     # ---------------------------------------------------------------------------
     # Personas en riesgo
@@ -517,7 +535,6 @@ def main():
         "grupos": grupos_list,
         "tipos": tipo_list,
         "evolucion": evolucion,
-        "status_matrix": status_matrix,
         "at_risk": at_risk_list,
         "eventos": EVENTS,
         "excepciones": {k: v for k, v in EXCEPTIONS.items()},

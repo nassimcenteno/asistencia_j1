@@ -49,20 +49,24 @@ También puede ejecutarse manualmente desde la pestaña **Actions** del repo.
 
 **Ver `workflows/lineamientos_reporte.md`** — es la única fuente de verdad para:
 - Thresholds de status (Fiel / Activo / Inconstante / Inactivo)
-- Excepciones de fechas por grupo, eventos especiales, grupos en hold
+- Excepciones de fechas por grupo, eventos especiales, grupos regidos por asistencia (BETTA / BETTA VIAJEROS)
 - Los 3 niveles de cálculo: persona / grupo / global (sección 10 del documento)
 - Definición de "En Riesgo" y racha actual
 - Membresía formal
 
 Al agregar una nueva excepción o lineamiento: actualizar ese archivo **y** el código en `process_data.py`.
 
-**Importante:** las claves de `GROUP_START_DATES` y `GROUP_END_DATES` deben coincidir exactamente con `GRUPO_ACTUAL` en el Sheet. Si un grupo se renombra ahí, hay que actualizar la clave en `process_data.py` o la regla deja de aplicarse **sin error** (ya pasó una vez con GDC NEW BETTA → GDC OMEGA).
+**Importante:** las claves de `GROUP_START_DATES` y `ATTENDANCE_DRIVEN_GROUPS` deben coincidir exactamente con `GRUPO_ACTUAL` en el Sheet. Si un grupo se renombra ahí, hay que actualizar la clave en `process_data.py` o la regla deja de aplicarse **sin error** (ya pasó una vez con GDC NEW BETTA → GDC OMEGA).
 
 ---
 
 ## Features del dashboard
 
 Stack: **Tailwind CSS CDN + ApexCharts + Inter font + dark mode** (CSS custom properties).
+
+**Filtro global de período:** chips Q1/Q2/Q3 combinables (mín. 1) a la derecha de las pestañas. Recalcula KPIs, ranking, evolución, tablas de grupos y personas, y export CSV al subconjunto de quarters elegido. Con los 3 Q activos no recalcula nada (idéntico a sin filtro). No afecta: dona por tipo (poblacional), lista de "En Riesgo" (global; solo su % por fila obedece), matriz de status (selector propio), "Participantes"/"% membresía" (roster completo).
+
+**Filtro de período local en los pop-ups:** el modal de persona y el de grupo tienen su propia fila de chips Q, independiente del global (arranca copiándolo). Solo afecta al contenido de ese pop-up: tarjeta de selección + historial + mini-chart en persona; status cards + N sesiones + evolución + bottom-5 en grupo.
 
 **4 tabs:** Resumen / Grupos / Personas / Riesgo
 
@@ -74,7 +78,7 @@ Stack: **Tailwind CSS CDN + ApexCharts + Inter font + dark mode** (CSS custom pr
 
 **Tab Grupos:**
 - Tabla de grupos: personas, sesiones (según `GROUP_START_DATES`), % asistencia, % membresía
-- Comparativa Q1 vs Q2 por grupo (columnas verticales, legible, sin etiquetas amontonadas)
+- Comparativa por quarter por grupo (Q1 / Q2 / Q3, columnas verticales, legible, sin etiquetas amontonadas)
 - Modal de detalle por grupo: evolución del grupo (usa `sesiones_grupo`, no `sesiones`, para no arrastrar historial que no aplica al grupo) + ranking de menor asistencia
 
 **Tab Personas:**
@@ -148,4 +152,6 @@ GitHub Actions copia `.tmp/dashboard.html` → `index.html` antes de publicar en
 | 2026-06 | Para colorear puntos individuales en ApexCharts usar `markers.discrete` (NO `markers.colors` array) |
 | 2026-06 | Label de `annotations.yaxis` siempre se superpone al chart — moverlo a HTML estático fuera del chart |
 | 2026-07 | Cada persona trae dos historiales en el JSON: `sesiones` (nivel persona, sin `GROUP_START_DATES`) y `sesiones_grupo` (nivel grupo, con `GROUP_START_DATES`). El modal de grupo debe usar `sesiones_grupo` — usar `sesiones` ahí infla el conteo de sesiones del grupo con historial que no le corresponde |
-| 2026-07 | `GROUP_START_DATES`/`GROUP_END_DATES` matchean por nombre de grupo como texto libre — un rename en el Sheet (ej. GDC NEW BETTA → GDC OMEGA) desactiva la regla sin error. Validar la clave cada vez que el Sheet reorganice grupos |
+| 2026-09 | 3 quarters (Q1/Q2/Q3). Lógica per-quarter generalizada a dicts keyed por `QUARTERS` en `process_data.py` (no copiar `q1`/`q2`/`q3` a mano). La matriz de status del dashboard se recalcula client-side (`MATRIX_TRANS` + selector); el `status_matrix` del JSON era muerto y se eliminó. Para agregar Q4 / cerrar Q3: tocar `get_quarter()` + tabla en `lineamientos_reporte.md`, el resto se propaga solo |
+| 2026-07 | `GROUP_START_DATES`/`ATTENDANCE_DRIVEN_GROUPS` matchean por nombre de grupo como texto libre — un rename en el Sheet (ej. GDC NEW BETTA → GDC OMEGA) desactiva la regla sin error. Validar la clave cada vez que el Sheet reorganice grupos |
+| 2026-09 | BETTA / BETTA VIAJEROS: se reemplazó el hold `GROUP_END_DATES` y sus excepciones manuales por la regla de asistencia (`ATTENDANCE_DRIVEN_GROUPS` + `group_had_session()`): 0 asistentes en una fecha ⇒ no hubo sesión, retroactivo. El dashboard no requirió cambios — solo presenta `sesiones_totales`/`sesiones_qN`/`pct_*` que ya salen ajustados de `process_data.py` |

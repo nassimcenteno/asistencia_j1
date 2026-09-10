@@ -78,6 +78,14 @@ body {{ font-family:'Inter',system-ui,sans-serif; background:var(--bg); color:va
 .tab-btn.active {{ background:var(--surface); color:#4F46E5; box-shadow:0 1px 4px rgba(0,0,0,.12); }}
 .tab-btn:hover:not(.active) {{ background:var(--surface2); color:var(--text); }}
 
+/* ── Global period filter ───────────── */
+.qbar {{ display:flex; align-items:center; gap:8px; }}
+.qbar-lbl {{ font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.6px; color:var(--muted); }}
+.qbar-group {{ display:flex; gap:3px; padding:3px; border-radius:10px; background:var(--surface2); }}
+.qchip {{ padding:6px 14px; border-radius:8px; font-size:13px; font-weight:600; color:var(--muted); border:none; background:transparent; cursor:pointer; transition:all .15s; }}
+.qchip.active {{ background:var(--surface); color:#4F46E5; box-shadow:0 1px 4px rgba(0,0,0,.12); }}
+.qchip:hover:not(.active) {{ color:var(--text); }}
+
 /* ── Card ────────────── */
 .card {{ background:var(--surface); border:1px solid var(--border); border-radius:16px; box-shadow:0 1px 3px rgba(0,0,0,.06); }}
 .card-title {{ font-size:14px; font-weight:600; color:var(--text); margin-bottom:16px; }}
@@ -203,8 +211,9 @@ body {{ font-family:'Inter',system-ui,sans-serif; background:var(--bg); color:va
 <!-- ══════════════════ MAIN ══════════════════ -->
 <main class="max-w-screen-xl mx-auto px-6 py-6">
 
-  <!-- Tabs -->
-  <div class="flex gap-1 p-1 rounded-xl w-fit mb-6" style="background:var(--surface2)">
+  <!-- Tabs + filtro global de período -->
+  <div class="flex items-center justify-between flex-wrap gap-3 mb-6">
+  <div class="flex gap-1 p-1 rounded-xl w-fit" style="background:var(--surface2)">
     <button class="tab-btn active" data-page="overview" onclick="showPage('overview',this)">
       <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
       <span class="tab-text">Resumen</span>
@@ -221,6 +230,15 @@ body {{ font-family:'Inter',system-ui,sans-serif; background:var(--bg); color:va
       <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
       <span class="tab-text">Riesgo</span>
     </button>
+  </div>
+    <div class="qbar" id="qbarGlobal">
+      <span class="qbar-lbl">Período</span>
+      <div class="qbar-group">
+        <button class="qchip active" data-q="Q1" onclick="toggleQ('Q1')">Q1</button>
+        <button class="qchip active" data-q="Q2" onclick="toggleQ('Q2')">Q2</button>
+        <button class="qchip active" data-q="Q3" onclick="toggleQ('Q3')">Q3</button>
+      </div>
+    </div>
   </div>
 
   <!-- ══ PAGE: RESUMEN ══ -->
@@ -274,7 +292,7 @@ body {{ font-family:'Inter',system-ui,sans-serif; background:var(--bg); color:va
   <!-- ══ PAGE: GRUPOS ══ -->
   <div class="page" id="page-grupos">
     <div class="card p-5 mb-5">
-      <div class="card-title">Comparativa Q1 vs Q2 por Grupo</div>
+      <div class="card-title">Comparativa por Quarter por Grupo</div>
       <div id="chartQ1Q2" style="height:320px"></div>
     </div>
     <div class="card mb-5" style="overflow:hidden">
@@ -284,9 +302,6 @@ body {{ font-family:'Inter',system-ui,sans-serif; background:var(--bg); color:va
           <select class="ctrl" id="filterGrupoTipo" onchange="renderTableGrupos()">
             <option value="">Todos los tipos</option>
             <option value="GBU">GBU</option><option value="GDA">GDA</option><option value="GDC">GDC</option>
-          </select>
-          <select class="ctrl" id="filterGrupoQ" onchange="renderTableGrupos()">
-            <option value="total">Total</option><option value="q1">Q1</option><option value="q2">Q2</option>
           </select>
           <button class="btn-sec" onclick="exportCSV('grupos')">
             <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
@@ -312,8 +327,13 @@ body {{ font-family:'Inter',system-ui,sans-serif; background:var(--bg); color:va
     </div>
     <div class="card" style="overflow:hidden">
       <div class="flex items-center justify-between flex-wrap gap-3 p-4" style="border-bottom:1px solid var(--border)">
-        <span class="text-sm font-semibold">Cambios de Status Q1 → Q2</span>
+        <span class="text-sm font-semibold">Cambios de Status entre Quarters</span>
         <div class="flex gap-2 items-center">
+          <select class="ctrl" id="filterMatrixTrans" onchange="renderMatrix()">
+            <option value="q1q2">Q1 → Q2</option>
+            <option value="q2q3">Q2 → Q3</option>
+            <option value="q1q3">Q1 → Q3</option>
+          </select>
           <select class="ctrl" id="filterMatrixTipo" onchange="updateMatrixGrupos();renderMatrix()">
             <option value="">Todos los tipos</option>
             <option value="GBU">GBU</option><option value="GDA">GDA</option><option value="GDC">GDC</option>
@@ -403,6 +423,7 @@ body {{ font-family:'Inter',system-ui,sans-serif; background:var(--bg); color:va
             <th>Rol</th>
             <th class="sortable" id="th-p-q1" onclick="sortPersonas('pct_q1')">Q1% <span class="sort-ind">↕</span></th>
             <th class="sortable" id="th-p-q2" onclick="sortPersonas('pct_q2')">Q2% <span class="sort-ind">↕</span></th>
+            <th class="sortable" id="th-p-q3" onclick="sortPersonas('pct_q3')">Q3% <span class="sort-ind">↕</span></th>
             <th class="sortable" id="th-p-total" onclick="sortPersonas('pct_total')">Total% <span class="sort-ind">↕</span></th>
             <th class="sortable" id="th-p-status" onclick="sortPersonas('status')">Status <span class="sort-ind">↕</span></th>
           </tr></thead>
@@ -426,6 +447,84 @@ body {{ font-family:'Inter',system-ui,sans-serif; background:var(--bg); color:va
 
 <script>
 const DATA = {data_json};
+
+// ── FILTRO DE PERÍODO (Q1/Q2/Q3 combinables) ──────────────────────────────
+const QALL = ['Q1','Q2','Q3'];
+let QSEL = new Set(QALL);            // filtro GLOBAL (chips del header)
+let modalQ = new Set(QALL);          // filtro LOCAL del pop-up abierto
+const qKeys  = (qs=QSEL) => QALL.filter(q => qs.has(q));
+const qLow   = (qs=QSEL) => qKeys(qs).map(q => q.toLowerCase());
+const isAll  = qs => qs.size === QALL.length;
+const isAllQ = () => isAll(QSEL);
+const qLabel = (qs=QSEL) => isAll(qs) ? 'todo el ciclo' : qKeys(qs).join(' + ');
+const qShort = (qs=QSEL) => isAll(qs) ? 'Total' : qKeys(qs).join('+');
+
+function statusFromPct(p) {{
+  return p === 0 ? 'Inactivo' : p <= 50 ? 'Inconstante' : p <= 79 ? 'Activo' : 'Fiel';
+}}
+// Persona: suma de los quarters de `qs`.
+const pAsist  = (p, qs=QSEL) => qLow(qs).reduce((s,q) => s + (p['asist_'+q] || 0), 0);
+const pTotal  = (p, qs=QSEL) => qLow(qs).reduce((s,q) => s + (p['total_'+q] || 0), 0);
+const pPct    = (p, qs=QSEL) => {{ const t = pTotal(p,qs); return t > 0 ? Math.round(pAsist(p,qs)/t*1000)/10 : 0; }};
+const pStatus = (p, qs=QSEL) => statusFromPct(pPct(p,qs));
+// Grupo: idem, con los conteos por-quarter del JSON.
+const gAsist    = (g, qs=QSEL) => qLow(qs).reduce((s,q) => s + (g['asist_'+q] || 0), 0);
+const gPosibles = (g, qs=QSEL) => qLow(qs).reduce((s,q) => s + (g['posibles_'+q] || 0), 0);
+const gPct      = (g, qs=QSEL) => {{ const t = gPosibles(g,qs); return t > 0 ? Math.round(gAsist(g,qs)/t*1000)/10 : 0; }};
+const gSesiones = (g, qs=QSEL) => qKeys(qs).reduce((s,q) => s + (g['sesiones_'+q.toLowerCase()] || 0), 0);
+
+// Con los 3 quarters activos NADA cambia: se devuelven los objetos del JSON tal cual.
+function scopedPersonas() {{
+  if (isAllQ()) return DATA.personas;
+  return DATA.personas.map(p => ({{ ...p, pct_total: pPct(p), status: pStatus(p) }}));
+}}
+function scopedGrupos() {{
+  if (isAllQ()) return DATA.grupos;
+  const dist = {{}};
+  DATA.personas.forEach(p => {{
+    const d = dist[p.grupo_actual] || (dist[p.grupo_actual] = {{Fiel:0,Activo:0,Inconstante:0,Inactivo:0}});
+    d[pStatus(p)]++;
+  }});
+  return DATA.grupos.map(g => ({{ ...g, pct_asistencia: gPct(g), sesiones_totales: gSesiones(g),
+                                 status_dist: dist[g.nombre] || {{}} }}));
+}}
+function scopedGlobalPct() {{
+  if (isAllQ()) return DATA.kpis.pct_asistencia_global;
+  const a = DATA.personas.reduce((s,p) => s + pAsist(p), 0);
+  const t = DATA.personas.reduce((s,p) => s + pTotal(p), 0);
+  return t > 0 ? Math.round(a/t*1000)/10 : 0;
+}}
+
+function toggleQ(q) {{
+  if (QSEL.has(q)) {{ if (QSEL.size === 1) return; QSEL.delete(q); }}
+  else QSEL.add(q);
+  document.querySelectorAll('#qbarGlobal .qchip').forEach(c => c.classList.toggle('active', QSEL.has(c.dataset.q)));
+  applyGlobalQ();
+}}
+function applyGlobalQ() {{
+  renderKPIs();
+  renderRankingGrupos();
+  renderChartEvolucion();
+  renderChartQ1Q2();
+  renderTableGrupos();
+  renderRiesgo();
+  renderPersonas();
+}}
+// Fila de chips Q para los pop-ups (filtro local, independiente del global).
+function modalQBar() {{
+  return `<div class="qbar" style="margin:0 0 14px">
+    <span class="qbar-lbl">Período</span>
+    <div class="qbar-group">
+      ${{QALL.map(q => `<button class="qchip${{modalQ.has(q)?' active':''}}" onclick="toggleModalQ('${{q}}')">${{q}}</button>`).join('')}}
+    </div>
+  </div>`;
+}}
+function toggleModalQ(q) {{
+  if (modalQ.has(q)) {{ if (modalQ.size === 1) return; modalQ.delete(q); }}
+  else modalQ.add(q);
+  if (modalState.kind === 'persona') renderPersonModal();
+  else if (modalState.kind === 'grupo') renderGroupModal();
+}}
 
 // ── DARK MODE ─────────────────────────────────────────────────────────────
 let chartTiposInst = null, chartEvolInst = null, chartQ1Q2Inst = null;
@@ -503,7 +602,7 @@ function navToStatus(page, status) {{
 // ── SORT ─────────────────────────────────────────────────────────────────
 const KEY_TO_ID = {{
   nombre_completo:'nombre',grupo_actual:'grupo',tipo_grupo:'tipo',
-  pct_total:'total',pct_q1:'q1',pct_q2:'q2',status:'status',
+  pct_total:'total',pct_q1:'q1',pct_q2:'q2',pct_q3:'q3',status:'status',
   pct_asistencia:'pct',num_miembros:'miembros',pct_membresia:'mem',
   ultima_asistencia:'ultima',nombre:'nombre',
 }};
@@ -544,8 +643,12 @@ function sortRiesgo(key) {{
 
 // ── KPIs ──────────────────────────────────────────────────────────────────
 function renderKPIs() {{
-  const k=DATA.kpis,sd=k.status_dist||{{}};
-  const ev=DATA.evolucion||[];
+  const k=DATA.kpis;
+  const sp=scopedPersonas();
+  const sd={{Fiel:0,Activo:0,Inconstante:0,Inactivo:0}};
+  sp.forEach(p=>{{ if(p.status in sd) sd[p.status]++; }});
+  const pctGlobal=scopedGlobalPct();
+  const ev=(DATA.evolucion||[]).filter(e=>QSEL.has(e.quarter));
   let deltaHtml='';
   if(ev.length>=2) {{
     const d=parseFloat((ev[ev.length-1].pct-ev[ev.length-2].pct).toFixed(1));
@@ -553,9 +656,10 @@ function renderKPIs() {{
     const arrow=d>0?'↑':d<0?'↓':'→';
     deltaHtml=`<div style="font-size:12px;font-weight:700;color:${{col}};margin-top:4px">${{arrow}} ${{d>0?'+':''}}${{d}}pp vs sem. ant.</div>`;
   }}
+  const partSub=isAllQ()?'con grupo activo':`período: ${{qKeys().join('+')}}`;
   const cards=[
-    {{l:'Participantes',  v:k.total_personas,              sub:'con grupo activo',   col:'#4F46E5', icon:'M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 7a4 4 0 1 0 8 0 4 4 0 0 0-8 0M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75', page:null}},
-    {{l:'% Asistencia',   v:k.pct_asistencia_global+'%',   sub:'promedio general',   col:'#0EA5E9', icon:'M23 6L13.5 15.5 8.5 10.5 1 18M17 6h6v6', page:null, extra:deltaHtml}},
+    {{l:'Participantes',  v:k.total_personas,              sub:partSub,              col:'#4F46E5', icon:'M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 7a4 4 0 1 0 8 0 4 4 0 0 0-8 0M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75', page:null}},
+    {{l:'% Asistencia',   v:pctGlobal+'%',                 sub:isAllQ()?'promedio general':qLabel(), col:'#0EA5E9', icon:'M23 6L13.5 15.5 8.5 10.5 1 18M17 6h6v6', page:null, extra:deltaHtml}},
     {{l:'Fieles',         v:sd.Fiel||0,                    sub:'80%+',               col:'#10B981', icon:'M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z', page:'personas',status:'Fiel'}},
     {{l:'Activos',        v:sd.Activo||0,                  sub:'51–79%',             col:'#4F46E5', icon:'M22 12h-4l-3 9L9 3l-3 9H2', page:'personas',status:'Activo'}},
     {{l:'Inconstantes',   v:sd.Inconstante||0,             sub:'1–50%',              col:'#F59E0B', icon:'M13 2L3 14h9l-1 8 10-12h-9l1-8z', page:'personas',status:'Inconstante'}},
@@ -582,8 +686,8 @@ function renderKPIs() {{
 
 // ── CHARTS ────────────────────────────────────────────────────────────────
 function renderRankingGrupos() {{
-  const grupos = sortBy(DATA.grupos, 'pct_asistencia', -1);
-  const avg = DATA.kpis.pct_asistencia_global;
+  const grupos = sortBy(scopedGrupos(), 'pct_asistencia', -1);
+  const avg = scopedGlobalPct();
   const medals = ['🥇','🥈','🥉'];
   document.getElementById('rankingPromLabel').innerHTML =
     `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#4F46E5;margin-right:5px;vertical-align:middle"></span>Promedio general: ${{avg}}%`;
@@ -608,9 +712,11 @@ function renderRankingGrupos() {{
 }}
 
 function renderChartTipos() {{
+  // Distribución poblacional: NO depende del filtro de período.
   const t = DATA.tipos;
   const total = DATA.kpis.total_personas;
   const colors = ['#4F46E5','#10B981','#F59E0B'];
+  if (chartTiposInst) {{ chartTiposInst.destroy(); chartTiposInst = null; }}
   chartTiposInst = new ApexCharts(document.getElementById('chartTipos'), {{
     ...baseChartOpts(),
     chart: {{ ...baseChartOpts().chart, type:'donut', height:260 }},
@@ -635,7 +741,7 @@ function renderChartTipos() {{
   if (statsEl) {{
     const maxTipo = t.reduce((a,b) => a.personas > b.personas ? a : b);
     const minTipo = t.reduce((a,b) => a.personas < b.personas ? a : b);
-    const ratio = Math.round(maxTipo.personas / minTipo.personas);
+    const ratio = minTipo.personas > 0 ? Math.round(maxTipo.personas / minTipo.personas) : '—';
     statsEl.innerHTML = t.map((item, i) => {{
       const pct = total > 0 ? Math.round(item.personas / total * 100) : 0;
       return `<div style="display:flex;align-items:center;gap:10px">
@@ -660,8 +766,9 @@ function renderChartTipos() {{
 }}
 
 function renderChartEvolucion() {{
-  const ev = DATA.evolucion;
-  const avg = DATA.kpis.pct_asistencia_global;
+  const ev = (DATA.evolucion || []).filter(e => QSEL.has(e.quarter));
+  const avg = scopedGlobalPct();
+  if (chartEvolInst) {{ chartEvolInst.destroy(); chartEvolInst = null; }}
   chartEvolInst = new ApexCharts(document.getElementById('chartEvolucion'), {{
     ...baseChartOpts(),
     chart: {{ ...baseChartOpts().chart, type:'area', height:280, zoom:{{ enabled:false }} }},
@@ -717,6 +824,8 @@ function renderChartEvolucion() {{
   const evolPromLabel = document.getElementById('evolPromLabel');
   if (evolPromLabel) evolPromLabel.querySelector('span').textContent = `Promedio ${{avg}}%`;
   // Tarjetas de resumen
+  const evolEl0 = document.getElementById('evolStats');
+  if (!ev.length) {{ if (evolEl0) evolEl0.innerHTML = ''; return; }}
   const best = ev.reduce((a,b) => a.pct > b.pct ? a : b);
   const worst = ev.reduce((a,b) => a.pct < b.pct ? a : b);
   const primera = fmtDate(ev[0].fecha);
@@ -750,17 +859,21 @@ function renderChartEvolucion() {{
   }}
 }}
 
+const Q_META = {{
+  Q1: {{ name:'Q1 (Ene–Mar)', key:'pct_q1', color:'#4F46E5' }},
+  Q2: {{ name:'Q2 (Abr–Jul)', key:'pct_q2', color:'#10B981' }},
+  Q3: {{ name:'Q3 (Ago+)',    key:'pct_q3', color:'#F59E0B' }},
+}};
 function renderChartQ1Q2() {{
   const g = DATA.grupos;
+  const qs = qKeys();
   const el = document.getElementById('chartQ1Q2');
   el.style.height = '340px';
+  if (chartQ1Q2Inst) {{ chartQ1Q2Inst.destroy(); chartQ1Q2Inst = null; }}
   chartQ1Q2Inst = new ApexCharts(el, {{
     ...baseChartOpts(),
     chart: {{ ...baseChartOpts().chart, type:'bar', height:340 }},
-    series: [
-      {{ name:'Q1 (Ene–Mar)', data:g.map(x=>x.pct_q1) }},
-      {{ name:'Q2 (Abr+)',    data:g.map(x=>x.pct_q2) }},
-    ],
+    series: qs.map(q => ({{ name:Q_META[q].name, data:g.map(x=>x[Q_META[q].key]) }})),
     xaxis: {{
       categories: g.map(x=>x.nombre),
       labels: {{ rotate:-40, rotateAlways:true, style:{{ fontSize:'10px', fontWeight:500 }} }},
@@ -771,18 +884,18 @@ function renderChartQ1Q2() {{
     plotOptions: {{ bar:{{ horizontal:false, borderRadius:4, columnWidth:'60%', dataLabels:{{ position:'top' }} }} }},
     grid: {{ show:false }},
     dataLabels: {{ enabled: false }},
-    colors: ['#4F46E5','#10B981'],
+    colors: qs.map(q => Q_META[q].color),
     legend: {{ position:'top', fontSize:'12px', markers:{{ radius:4 }} }},
     stroke: {{ show:true, width:2, colors:['transparent'] }},
     tooltip: {{
       custom: function({{ dataPointIndex }}) {{
         const grp = g[dataPointIndex];
+        const rows = qs.map(q =>
+          `<div style="font-size:12px"><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${{Q_META[q].color}};margin-right:6px"></span>${{q}}: <b>${{grp[Q_META[q].key]}}%</b></div>`
+        ).join('');
         return `<div style="padding:10px 14px;font-family:Inter,sans-serif">
           <div style="font-size:12px;font-weight:700;margin-bottom:8px">${{grp.nombre}}</div>
-          <div style="display:flex;flex-direction:column;gap:4px">
-            <div style="font-size:12px"><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#4F46E5;margin-right:6px"></span>Q1: <b>${{grp.pct_q1}}%</b></div>
-            <div style="font-size:12px"><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#10B981;margin-right:6px"></span>Q2: <b>${{grp.pct_q2}}%</b></div>
-          </div>
+          <div style="display:flex;flex-direction:column;gap:4px">${{rows}}</div>
         </div>`;
       }}
     }},
@@ -793,19 +906,17 @@ function renderChartQ1Q2() {{
 // ── TABLE: GRUPOS ─────────────────────────────────────────────────────────
 function renderTableGrupos() {{
   const tipo=document.getElementById('filterGrupoTipo').value;
-  const q=document.getElementById('filterGrupoQ').value;
-  let grupos=DATA.grupos.filter(g=>!tipo||g.tipo_grupo===tipo);
+  let grupos=scopedGrupos().filter(g=>!tipo||g.tipo_grupo===tipo);
   grupos=sortBy(grupos,sortState.grupos.key,sortState.grupos.dir);
   applySortIndicators('g',sortState.grupos);
   const sd=g=>g.status_dist||{{}};
   document.getElementById('tbodyGrupos').innerHTML=grupos.map(g=>{{
-    const pct=q==='q1'?g.pct_q1:q==='q2'?g.pct_q2:g.pct_asistencia;
     return`<tr class="clickable" data-nombre="${{g.nombre}}" onclick="openGroupDrilldown(this.dataset.nombre)">
       <td data-label="Grupo"><strong>${{g.nombre}}</strong></td>
       <td data-label="Tipo">${{g.tipo_grupo||'-'}}</td>
       <td data-label="Personas">${{g.num_miembros}}</td>
       <td data-label="Sesiones">${{g.sesiones_totales}}</td>
-      <td data-label="% Asist.">${{pctBar(pct)}}</td>
+      <td data-label="% Asist.">${{pctBar(g.pct_asistencia)}}</td>
       <td data-label="Formales">${{g.num_miembros_formales}}</td>
       <td data-label="% Memb."><span style="font-weight:600;color:#4F46E5">${{g.pct_membresia}}%</span></td>
       <td data-label="Fieles"><span style="color:#10B981;font-weight:700">${{sd(g).Fiel||0}}</span></td>
@@ -825,15 +936,24 @@ function updateMatrixGrupos() {{
   [...new Set(DATA.personas.filter(p=>!tipo||p.tipo_grupo===tipo).map(p=>p.grupo_actual))].sort()
     .forEach(g=>{{const o=document.createElement('option');o.value=g;o.text=g;if(g===prev)o.selected=true;sel.appendChild(o);}});
 }}
+const MATRIX_TRANS={{
+  q1q2:{{from:'status_q1',to:'status_q2',label:'Q1 → Q2'}},
+  q2q3:{{from:'status_q2',to:'status_q3',label:'Q2 → Q3'}},
+  q1q3:{{from:'status_q1',to:'status_q3',label:'Q1 → Q3'}},
+}};
 function renderMatrix() {{
   const tipo=document.getElementById('filterMatrixTipo').value;
   const grupo=document.getElementById('filterMatrixGrupo').value;
+  const trans=MATRIX_TRANS[document.getElementById('filterMatrixTrans').value]||MATRIX_TRANS.q1q2;
   const personas=DATA.personas.filter(p=>(!tipo||p.tipo_grupo===tipo)&&(!grupo||p.grupo_actual===grupo));
   const order=['Fiel','Activo','Inconstante','Inactivo'];
   const M={{}};
   order.forEach(s1=>{{M[s1]={{}};order.forEach(s2=>M[s1][s2]=0);}});
-  personas.forEach(p=>{{if(p.status_q1&&p.status_q2&&M[p.status_q1])M[p.status_q1][p.status_q2]=(M[p.status_q1][p.status_q2]||0)+1;}});
-  let html=`<tr><th>Q1 \\ Q2</th>${{order.map(s=>`<th>${{s}}</th>`).join('')}}</tr>`;
+  personas.forEach(p=>{{
+    const a=p[trans.from],b=p[trans.to];
+    if(a&&b&&M[a])M[a][b]=(M[a][b]||0)+1;
+  }});
+  let html=`<tr><th>${{trans.label}}</th>${{order.map(s=>`<th>${{s}}</th>`).join('')}}</tr>`;
   order.forEach(s1=>{{
     const rowTotal=order.reduce((sum,s2)=>sum+(M[s1][s2]||0),0);
     if(rowTotal===0)return;
@@ -852,7 +972,13 @@ function renderMatrix() {{
 // ── TABLE: RIESGO ─────────────────────────────────────────────────────────
 function renderRiesgo() {{
   const tipo=document.getElementById('filterRiesgoTipo').value;
-  let lista=(DATA.at_risk||[]).filter(p=>!tipo||p.tipo_grupo===tipo);
+  // La lista de riesgo es global (últimas 4 sesiones del ciclo); el % / status de cada fila sí reflejan el período.
+  const pmap={{}};
+  DATA.personas.forEach(p=>{{ pmap[p.nombre_completo+'|'+p.grupo_actual]=p; }});
+  let lista=(DATA.at_risk||[]).filter(p=>!tipo||p.tipo_grupo===tipo).map(r=>{{
+    const p=pmap[r.nombre_completo+'|'+r.grupo_actual];
+    return p ? {{ ...r, pct_total:pPct(p), status:pStatus(p)||r.status }} : r;
+  }});
   lista=sortBy(lista,sortState.riesgo.key,sortState.riesgo.dir);
   applySortIndicators('r',sortState.riesgo);
   document.getElementById('tbodyRiesgo').innerHTML=lista.map(p=>
@@ -873,7 +999,7 @@ function renderPersonas() {{
   const grupo=document.getElementById('filterPGrupo').value;
   const tipo=document.getElementById('filterPTipo').value;
   const status=document.getElementById('filterPStatus').value;
-  let list=DATA.personas.filter(p=>
+  let list=scopedPersonas().filter(p=>
     (!search||p.nombre_completo.toLowerCase().includes(search))&&
     (!grupo||p.grupo_actual===grupo)&&
     (!tipo||p.tipo_grupo===tipo)&&
@@ -889,6 +1015,7 @@ function renderPersonas() {{
       <td data-label="Rol">${{p.rol||'-'}}</td>
       <td data-label="Q1%" style="font-weight:600;color:${{pctColor(p.pct_q1)}}">${{p.pct_q1}}%</td>
       <td data-label="Q2%" style="font-weight:600;color:${{pctColor(p.pct_q2)}}">${{p.pct_q2}}%</td>
+      <td data-label="Q3%" style="font-weight:600;color:${{pctColor(p.pct_q3)}}">${{p.pct_q3}}%</td>
       <td data-label="Total%">${{pctBar(p.pct_total)}}</td>
       <td data-label="Status">${{badgeHtml(p.status)}}</td>
     </tr>`
@@ -898,25 +1025,31 @@ function renderPersonas() {{
 // ── EXPORT CSV ────────────────────────────────────────────────────────────
 function exportCSV(tabla) {{
   let headers,rows;
+  const periodo=isAllQ()?'ciclo':qKeys().join('+');
   if(tabla==='personas') {{
-    headers=['Nombre','Grupo','Tipo','Rol','Q1%','Q2%','Total%','Status'];
+    headers=['Nombre','Grupo','Tipo','Rol','Q1%','Q2%','Q3%','Total% ('+periodo+')','Status ('+periodo+')'];
     const s=document.getElementById('filterPStatus').value;
     const g=document.getElementById('filterPGrupo').value;
     const t=document.getElementById('filterPTipo').value;
-    rows=DATA.personas.filter(p=>(!s||p.status===s)&&(!g||p.grupo_actual===g)&&(!t||p.tipo_grupo===t))
-      .map(p=>[p.nombre_completo,p.grupo_actual,p.tipo_grupo||'',p.rol||'',p.pct_q1,p.pct_q2,p.pct_total,p.status]);
+    rows=scopedPersonas().filter(p=>(!s||p.status===s)&&(!g||p.grupo_actual===g)&&(!t||p.tipo_grupo===t))
+      .map(p=>[p.nombre_completo,p.grupo_actual,p.tipo_grupo||'',p.rol||'',p.pct_q1,p.pct_q2,p.pct_q3,p.pct_total,p.status]);
   }} else if(tabla==='grupos') {{
-    headers=['Grupo','Tipo','Personas','Sesiones','%Asist','%Memb','Fieles','Activos','Inconstantes','Inactivos'];
+    headers=['Grupo','Tipo','Personas','Sesiones ('+periodo+')','%Asist ('+periodo+')','%Memb','Fieles','Activos','Inconstantes','Inactivos'];
     const tipo=document.getElementById('filterGrupoTipo').value;
-    rows=DATA.grupos.filter(g=>!tipo||g.tipo_grupo===tipo).map(g=>{{
+    rows=scopedGrupos().filter(g=>!tipo||g.tipo_grupo===tipo).map(g=>{{
       const sd=g.status_dist||{{}};
       return[g.nombre,g.tipo_grupo||'',g.num_miembros,g.sesiones_totales,g.pct_asistencia,g.pct_membresia,sd.Fiel||0,sd.Activo||0,sd.Inconstante||0,sd.Inactivo||0];
     }});
   }} else {{
-    headers=['Nombre','Grupo','Tipo','%Total','Status','Ultima Asistencia'];
+    headers=['Nombre','Grupo','Tipo','%Total ('+periodo+')','Status ('+periodo+')','Ultima Asistencia'];
     const tipo=document.getElementById('filterRiesgoTipo').value;
-    rows=(DATA.at_risk||[]).filter(p=>!tipo||p.tipo_grupo===tipo)
-      .map(p=>[p.nombre_completo,p.grupo_actual,p.tipo_grupo||'',p.pct_total,p.status,p.ultima_asistencia||'Nunca']);
+    const pmap={{}};
+    DATA.personas.forEach(p=>{{ pmap[p.nombre_completo+'|'+p.grupo_actual]=p; }});
+    rows=(DATA.at_risk||[]).filter(p=>!tipo||p.tipo_grupo===tipo).map(r=>{{
+      const p=pmap[r.nombre_completo+'|'+r.grupo_actual];
+      const pt=p?pPct(p):r.pct_total, st=p?(pStatus(p)||r.status):r.status;
+      return[r.nombre_completo,r.grupo_actual,r.tipo_grupo||'',pt,st,r.ultima_asistencia||'Nunca'];
+    }});
   }}
   const csv=[headers,...rows].map(r=>r.map(v=>`"${{String(v).replace(/"/g,'""')}}"`).join(',')).join('\\n');
   const a=document.createElement('a');
@@ -925,11 +1058,29 @@ function exportCSV(tabla) {{
   a.click();
 }}
 
-// ── PERSON DRILLDOWN ──────────────────────────────────────────────────────
+// ── DRILLDOWN (persona / grupo) ───────────────────────────────────────────
 let drillChart=null;
+let modalState={{kind:null,name:null}};
+
 function openDrilldown(name) {{
-  const p=DATA.personas.find(x=>x.nombre_completo===name);
+  if(!DATA.personas.some(x=>x.nombre_completo===name))return;
+  modalState={{kind:'persona',name}};
+  modalQ=new Set(QSEL);                       // arranca desde el filtro global
+  renderPersonModal();
+  document.getElementById('modalOverlay').classList.add('open');
+}}
+function openGroupDrilldown(groupName) {{
+  if(!DATA.personas.some(p=>p.grupo_actual===groupName))return;
+  modalState={{kind:'grupo',name:groupName}};
+  modalQ=new Set(QSEL);
+  renderGroupModal();
+  document.getElementById('modalOverlay').classList.add('open');
+}}
+
+function renderPersonModal() {{
+  const p=DATA.personas.find(x=>x.nombre_completo===modalState.name);
   if(!p)return;
+  const selPct=pPct(p,modalQ),selA=pAsist(p,modalQ),selT=pTotal(p,modalQ),selSt=pStatus(p,modalQ),selLbl=qShort(modalQ);
   let rachaHtml='';
   if(p.racha_actual&&p.racha_actual!==0) {{
     const r=p.racha_actual,abs=Math.abs(r);
@@ -937,57 +1088,66 @@ function openDrilldown(name) {{
     const txt=r>0?`${{abs}} semana${{abs>1?'s':''}} asistiendo consecutivamente`:`${{abs}} semana${{abs>1?'s':''}} sin asistir`;
     rachaHtml=`<div class="racha-badge ${{cls}}">${{icon}} ${{txt}}</div>`;
   }}
+  const qcard=q=>{{
+    const l=q.toLowerCase(),on=modalQ.has(q),pc=p['pct_'+l],a=p['asist_'+l],t=p['total_'+l],st=p['status_'+l];
+    return`<div class="modal-stat" style="${{on?'':'opacity:.38'}}"><div class="modal-stat-val" style="color:${{pctColor(pc)}}">${{pc}}%</div><div class="modal-stat-lbl">${{q}} (${{a}}/${{t}})</div>${{st?`<div style="margin-top:4px">${{badgeHtml(st)}}</div>`:''}}</div>`;
+  }};
+  const totCard=isAll(modalQ)
+    ? `<div class="modal-stat"><div class="modal-stat-val" style="color:${{pctColor(p.pct_total)}}">${{p.pct_total}}%</div><div class="modal-stat-lbl">Total (${{p.total_asistencias}}/${{p.total_sesiones}})</div><div style="margin-top:4px">${{badgeHtml(p.status)}}</div></div>`
+    : `<div class="modal-stat" style="outline:2px solid #4F46E5;outline-offset:-2px"><div class="modal-stat-val" style="color:${{pctColor(selPct)}}">${{selPct}}%</div><div class="modal-stat-lbl">${{selLbl}} (${{selA}}/${{selT}})</div><div style="margin-top:4px">${{badgeHtml(selSt)}}</div></div>`;
   document.getElementById('modalContent').innerHTML=`
     <div style="font-size:22px;font-weight:800;padding-right:40px;margin-bottom:4px">${{p.nombre_completo}}</div>
-    <div style="font-size:13px;color:var(--muted);margin-bottom:16px;display:flex;flex-wrap:wrap;gap:8px">
+    <div style="font-size:13px;color:var(--muted);margin-bottom:14px;display:flex;flex-wrap:wrap;gap:8px">
       <span>📌 ${{p.grupo_actual}}</span>
       <span>🏷️ ${{p.tipo_grupo||'-'}}</span>
       <span>👤 ${{p.rol||'Sin rol'}}</span>
       <span>🎓 ${{p.tipo_miembro||'No miembro'}}</span>
       ${{p.at_risk?'<span class="badge badge-riesgo">En riesgo</span>':''}}
     </div>
+    ${{modalQBar()}}
     ${{rachaHtml}}
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px">
-      <div class="modal-stat"><div class="modal-stat-val" style="color:${{pctColor(p.pct_q1)}}">${{p.pct_q1}}%</div><div class="modal-stat-lbl">Q1 (${{p.asist_q1}}/${{p.total_q1}})</div>${{p.status_q1?`<div style="margin-top:4px">${{badgeHtml(p.status_q1)}}</div>`:''}}</div>
-      <div class="modal-stat"><div class="modal-stat-val" style="color:${{pctColor(p.pct_q2)}}">${{p.pct_q2}}%</div><div class="modal-stat-lbl">Q2 (${{p.asist_q2}}/${{p.total_q2}})</div>${{p.status_q2?`<div style="margin-top:4px">${{badgeHtml(p.status_q2)}}</div>`:''}}</div>
-      <div class="modal-stat"><div class="modal-stat-val" style="color:${{pctColor(p.pct_total)}}">${{p.pct_total}}%</div><div class="modal-stat-lbl">Total (${{p.total_asistencias}}/${{p.total_sesiones}})</div><div style="margin-top:4px">${{badgeHtml(p.status)}}</div></div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px">
+      ${{qcard('Q1')}}${{qcard('Q2')}}${{qcard('Q3')}}${{totCard}}
     </div>
     <div style="font-size:14px;font-weight:600;margin-bottom:10px">Historial <span style="font-size:12px;font-weight:400;color:var(--muted)">✓ asistió · ✗ faltó · ★ evento</span></div>
     <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:20px" id="modalTL"></div>
-    <div id="modalChart" style="height:120px"></div>
+    <div id="modalChart" style="height:150px"></div>
   `;
-  const fechasAsistidas=new Set(p.sesiones.filter(s=>s.asistio).map(s=>s.fecha));
-  document.getElementById('modalTL').innerHTML=p.sesiones.map(s=>{{
+  const ses=p.sesiones.filter(s=>modalQ.has(s.quarter));
+  document.getElementById('modalTL').innerHTML=ses.map(s=>{{
     const cls=s.evento?'evento':s.asistio?'asistio':'falto';
     const icon=s.asistio?'✓':'✗';
     const lbl=s.evento?fmtDate(s.fecha)+' '+s.evento:fmtDate(s.fecha);
-    const qStyle=s.quarter==='Q2'?'outline:2px solid #10B98140;outline-offset:-2px':'';
+    const qStyle=s.quarter==='Q2'?'outline:2px solid #10B98140;outline-offset:-2px':s.quarter==='Q3'?'outline:2px solid #F59E0B40;outline-offset:-2px':'';
     return`<div class="tl-dot ${{cls}}" style="${{qStyle}}">${{icon}}<span class="tl-label">${{fmtDate(s.fecha)}}</span><span class="tt">${{lbl}}</span></div>`;
-  }}).join('');
+  }}).join('')||'<span style="font-size:12px;color:var(--muted)">Sin sesiones en el período seleccionado</span>';
+  const chartQ=[...['Q1','Q2','Q3'].map(q=>p['pct_'+q.toLowerCase()]),selPct];
+  const chartLbl=['Q1','Q2','Q3',selLbl];
   if(drillChart){{drillChart.destroy();drillChart=null;}}
   drillChart=new ApexCharts(document.getElementById('modalChart'),{{
     ...baseChartOpts(),
-    chart:{{...baseChartOpts().chart,type:'bar',height:120,sparkline:{{enabled:false}}}},
-    series:[{{name:'%',data:[p.pct_q1,p.pct_q2,p.pct_total]}}],
-    xaxis:{{categories:['Q1','Q2','Total']}},
-    yaxis:{{min:0,max:100,labels:{{formatter:v=>v+'%'}}}},
-    plotOptions:{{bar:{{borderRadius:4,distributed:true}}}},
-    colors:[pctColor(p.pct_q1),pctColor(p.pct_q2),pctColor(p.pct_total)],
-    dataLabels:{{enabled:true,formatter:v=>v+'%',style:{{fontWeight:700}}}},
+    chart:{{...baseChartOpts().chart,type:'bar',height:150,sparkline:{{enabled:false}}}},
+    series:[{{name:'%',data:chartQ}}],
+    xaxis:{{categories:chartLbl,axisBorder:{{show:false}},axisTicks:{{show:false}},labels:{{style:{{fontSize:'12px',fontWeight:600}}}}}},
+    yaxis:{{show:false,min:0,max:100}},
+    grid:{{show:false,padding:{{left:-10,right:0}}}},
+    plotOptions:{{bar:{{borderRadius:4,distributed:true,columnWidth:'55%'}}}},
+    colors:chartQ.map(v=>pctColor(v)),
+    dataLabels:{{enabled:true,formatter:v=>v+'%',style:{{fontWeight:700,fontSize:'12px'}}}},
     legend:{{show:false}},
     tooltip:{{y:{{formatter:v=>v+'%'}}}},
   }});
   drillChart.render();
-  document.getElementById('modalOverlay').classList.add('open');
 }}
 
-// ── GROUP DRILLDOWN ───────────────────────────────────────────────────────
-function openGroupDrilldown(groupName) {{
+function renderGroupModal() {{
+  const groupName=modalState.name;
   const members=DATA.personas.filter(p=>p.grupo_actual===groupName);
   if(!members.length)return;
   const g=DATA.grupos.find(x=>x.nombre===groupName)||{{}};
-  const sd=g.status_dist||{{}};
-  const dateSet=new Set(members.flatMap(m=>m.sesiones_grupo.map(s=>s.fecha)));
+  const sd={{Fiel:0,Activo:0,Inconstante:0,Inactivo:0}};
+  members.forEach(m=>{{ sd[pStatus(m,modalQ)]++; }});
+  const dateSet=new Set(members.flatMap(m=>m.sesiones_grupo.filter(s=>modalQ.has(s.quarter)).map(s=>s.fecha)));
   const dates=[...dateSet].sort();
   const gEv=dates.map(fecha=>{{
     const tot=members.filter(m=>m.sesiones_grupo.some(s=>s.fecha===fecha)).length;
@@ -995,62 +1155,72 @@ function openGroupDrilldown(groupName) {{
     const evento=(DATA.eventos||{{}})[fecha]||null;
     return{{fecha,tot,att,pct:tot>0?Math.round(att/tot*100):0,evento}};
   }});
-  const bottom5=[...members].sort((a,b)=>a.pct_total-b.pct_total).slice(0,5);
+  const bottom5=[...members].sort((a,b)=>pPct(a,modalQ)-pPct(b,modalQ)).slice(0,5);
   document.getElementById('modalContent').innerHTML=`
     <div style="font-size:22px;font-weight:800;padding-right:40px;margin-bottom:4px">${{groupName}}</div>
-    <div style="font-size:13px;color:var(--muted);margin-bottom:16px;display:flex;gap:12px">
+    <div style="font-size:13px;color:var(--muted);margin-bottom:14px;display:flex;gap:12px">
       <span>🏷️ ${{g.tipo_grupo||'-'}}</span>
       <span>👥 ${{members.length}} personas</span>
       <span>📅 ${{dates.length}} sesiones</span>
     </div>
+    ${{modalQBar()}}
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px">
-      <div class="modal-stat"><div class="modal-stat-val" style="color:#10B981">${{sd.Fiel||0}}</div><div class="modal-stat-lbl">Fieles</div></div>
-      <div class="modal-stat"><div class="modal-stat-val" style="color:#4F46E5">${{sd.Activo||0}}</div><div class="modal-stat-lbl">Activos</div></div>
-      <div class="modal-stat"><div class="modal-stat-val" style="color:#F59E0B">${{sd.Inconstante||0}}</div><div class="modal-stat-lbl">Inconstantes</div></div>
-      <div class="modal-stat"><div class="modal-stat-val" style="color:#EF4444">${{sd.Inactivo||0}}</div><div class="modal-stat-lbl">Inactivos</div></div>
+      <div class="modal-stat"><div class="modal-stat-val" style="color:#10B981">${{sd.Fiel}}</div><div class="modal-stat-lbl">Fieles</div></div>
+      <div class="modal-stat"><div class="modal-stat-val" style="color:#4F46E5">${{sd.Activo}}</div><div class="modal-stat-lbl">Activos</div></div>
+      <div class="modal-stat"><div class="modal-stat-val" style="color:#F59E0B">${{sd.Inconstante}}</div><div class="modal-stat-lbl">Inconstantes</div></div>
+      <div class="modal-stat"><div class="modal-stat-val" style="color:#EF4444">${{sd.Inactivo}}</div><div class="modal-stat-lbl">Inactivos</div></div>
     </div>
-    <div style="font-size:14px;font-weight:600;margin-bottom:10px">Evolución del grupo</div>
-    <div id="modalChart" style="height:180px;margin-bottom:20px"></div>
+    <div style="font-size:14px;font-weight:600;margin-bottom:10px">Evolución del grupo <span style="font-size:12px;font-weight:400;color:var(--muted)">· puntos naranjos = eventos</span></div>
+    <div id="modalChart" style="height:220px;margin-bottom:20px"></div>
     <div style="font-size:14px;font-weight:600;margin-bottom:10px">Menor asistencia <span style="font-size:12px;font-weight:400;color:var(--muted)">(click para ver detalle)</span></div>
-    <div style="overflow-x:auto"><table class="mini-table"><thead><tr><th>Nombre</th><th>% Total</th><th>Status</th></tr></thead><tbody id="groupMembersTbody"></tbody></table></div>
+    <div style="overflow-x:auto"><table class="mini-table"><thead><tr><th>Nombre</th><th>% ${{qShort(modalQ)}}</th><th>Status</th></tr></thead><tbody id="groupMembersTbody"></tbody></table></div>
   `;
   document.getElementById('groupMembersTbody').innerHTML=bottom5.map(p=>
     `<tr class="clickable" data-nombre="${{p.nombre_completo}}" onclick="openDrilldown(this.dataset.nombre)">
       <td><strong>${{p.nombre_completo}}</strong></td>
-      <td>${{pctBar(p.pct_total)}}</td>
-      <td>${{badgeHtml(p.status)}}</td>
+      <td>${{pctBar(pPct(p,modalQ))}}</td>
+      <td>${{badgeHtml(pStatus(p,modalQ))}}</td>
     </tr>`
   ).join('');
+  const gAvg=gEv.length?Math.round(gEv.reduce((s,e)=>s+e.pct,0)/gEv.length):0;
   if(drillChart){{drillChart.destroy();drillChart=null;}}
+  if(!gEv.length){{ document.getElementById('modalChart').innerHTML='<div style="font-size:12px;color:var(--muted);padding:20px 0">Sin sesiones en el período seleccionado</div>'; return; }}
   drillChart=new ApexCharts(document.getElementById('modalChart'),{{
     ...baseChartOpts(),
-    chart:{{...baseChartOpts().chart,type:'area',height:180}},
-    series:[{{name:'% Asist.',data:gEv.map(e=>e.pct)}}],
-    xaxis:{{categories:gEv.map(e=>fmtDate(e.fecha)+(e.evento?' ★':'')),labels:{{rotate:-40,style:{{fontSize:'10px'}}}}}},
+    chart:{{...baseChartOpts().chart,type:'area',height:220,zoom:{{enabled:false}}}},
+    series:[{{name:'% Asistencia',data:gEv.map(e=>e.pct)}}],
+    xaxis:{{categories:gEv.map(e=>fmtDate(e.fecha)),labels:{{rotate:-45,style:{{fontSize:'11px'}}}},axisBorder:{{show:false}}}},
     yaxis:{{min:0,max:100,labels:{{formatter:v=>v+'%'}}}},
     grid:{{show:false}},
-    fill:{{type:'gradient',gradient:{{opacityFrom:0.12,opacityTo:0}}}},
+    annotations:{{yaxis:[{{y:gAvg,borderColor:'#94A3B8',borderWidth:1,strokeDashArray:4}}]}},
+    markers:{{
+      size:5,colors:['#4F46E5'],strokeColors:['#3730A3'],strokeWidth:2,hover:{{size:7}},
+      discrete:gEv.map((e,i)=>e.evento?{{seriesIndex:0,dataPointIndex:i,fillColor:'#F59E0B',strokeColor:'#D97706',size:7}}:null).filter(Boolean)
+    }},
+    dataLabels:{{enabled:true,formatter:v=>v+'%',style:{{fontSize:'11px',fontWeight:700,colors:['#4F46E5']}},background:{{enabled:false}},offsetY:-6}},
+    fill:{{type:'gradient',gradient:{{type:'vertical',shadeIntensity:0,inverseColors:false,opacityFrom:0.4,opacityTo:0.02,stops:[0,95,100]}}}},
     stroke:{{curve:'smooth',width:2.5}},
     colors:['#4F46E5'],
     legend:{{show:false}},
-    markers:{{size:gEv.map(e=>e.evento?6:3),colors:gEv.map(e=>e.evento?'#F59E0B':'#4F46E5')}},
     tooltip:{{custom:function({{dataPointIndex}}){{
       const e=gEv[dataPointIndex];
-      return`<div style="padding:8px 12px;font-family:Inter,sans-serif">
-        <div style="font-weight:600">${{fmtDate(e.fecha)}}${{e.evento?' — '+e.evento:''}}</div>
-        <div style="font-size:18px;font-weight:800;color:#4F46E5">${{e.pct}}%</div>
-        <div style="font-size:11px;color:var(--muted)">${{e.att}}/${{e.tot}} personas</div>
+      const evLabel=e.evento?`<div style="font-size:11px;color:#92400E;font-weight:600;margin-top:2px">★ ${{e.evento}}</div>`:'';
+      return`<div style="padding:10px 14px;font-family:Inter,sans-serif;min-width:160px">
+        <div style="font-size:12px;font-weight:600;color:var(--text)">${{fmtDate(e.fecha)}}</div>
+        ${{evLabel}}
+        <div style="font-size:20px;font-weight:800;color:#4F46E5;margin-top:4px">${{e.pct}}%</div>
+        <div style="font-size:11px;color:var(--muted)">${{e.att}} / ${{e.tot}} personas</div>
       </div>`;
     }}}},
   }});
   drillChart.render();
-  document.getElementById('modalOverlay').classList.add('open');
 }}
 
 // ── MODAL CLOSE ───────────────────────────────────────────────────────────
 function closeModal(e) {{ if(e.target===document.getElementById('modalOverlay'))closeModalDirect(); }}
 function closeModalDirect() {{
   document.getElementById('modalOverlay').classList.remove('open');
+  modalState={{kind:null,name:null}};
   if(drillChart){{drillChart.destroy();drillChart=null;}}
 }}
 

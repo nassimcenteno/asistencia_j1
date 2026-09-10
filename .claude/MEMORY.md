@@ -73,9 +73,10 @@ workflows/                     ← SOPs en Markdown
 
 **Ver `workflows/lineamientos_reporte.md`** — fuente de verdad para:
 - Status: Fiel ≥80% / Activo 51-79% / Inconstante 1-50% / Inactivo 0%
+- Períodos: Q1 ene-mar / Q2 abr-**jul** / Q3 ago-TBD (3 quarters desde 2026-09; `get_quarter()` de 3 ramas). Todo el pipeline expone `pct_q1/q2/q3`, `asist_q*`, `total_q*`, `status_q*`.
 - Excepciones de fechas por grupo (denominador del %)
 - Eventos especiales (JADAK, Montecamp, Reencuentro, Apologética, El Viaje, Puentes)
-- Grupos en hold (`GROUP_END_DATES`): dejan de contar sesiones desde una fecha (ej. GDC BETTA VIAJEROS desde 27/6)
+- Grupos regidos por asistencia (`ATTENDANCE_DRIVEN_GROUPS` = GDC BETTA, GDC BETTA VIAJEROS): fecha con 0 asistentes ⇒ no hubo sesión (dinámico/retroactivo). Reemplazó al viejo hold `GROUP_END_DATES` y a las excepciones manuales de BETTA. Ver `lineamientos_reporte.md` §12
 - En Riesgo: 0 asistencias en las últimas 4 sesiones del grupo (dinámico)
 - Racha actual: semanas consecutivas asistiendo (positivo) o ausente (negativo)
 - Membresía formal: `Miembro Bautizado` o `Transferido`
@@ -94,7 +95,7 @@ El pipeline separa 3 cálculos independientes — ver sección 10 de `lineamient
 
 **Cuidado al tocar el dashboard:** el modal de grupo (`openGroupDrilldown` en `generate_dashboard.py`) debe usar `sesiones_grupo`, no `sesiones` — usar el campo equivocado ahí fue un bug real (mostraba 18 sesiones en vez de 8 para GDC OMEGA).
 
-**Riesgo conocido:** `GROUP_START_DATES`/`GROUP_END_DATES`/`EXCEPTIONS` matchean por nombre de grupo (texto libre, sin ID estable). Si el Sheet renombra un grupo, la regla se desactiva **sin error** — pasó con GDC NEW BETTA → GDC OMEGA (2026-07).
+**Riesgo conocido:** `GROUP_START_DATES`/`ATTENDANCE_DRIVEN_GROUPS`/`EXCEPTIONS` matchean por nombre de grupo (texto libre, sin ID estable). Si el Sheet renombra un grupo, la regla se desactiva **sin error** — pasó con GDC NEW BETTA → GDC OMEGA (2026-07).
 
 ### Filtro de entrada: `GRUPO_ACTUAL` en blanco
 
@@ -102,7 +103,7 @@ El pipeline separa 3 cálculos independientes — ver sección 10 de `lineamient
 
 ### Denominador semanal (`total_aplica` en `evolucion`)
 
-No es "toda la gente con `GRUPO_ACTUAL`". Por cada fecha excluye además: (1) grupos en hold (`GROUP_END_DATES`) desde su fecha de hold, y (2) personas con `FECHA_INGRESO` posterior a esa fecha. Por eso el denominador de una semana puede ser menor que el total de personas activas.
+No es "toda la gente con `GRUPO_ACTUAL`". Por cada fecha excluye además: (1) miembros de grupos `ATTENDANCE_DRIVEN_GROUPS` en fechas donde ese grupo tuvo 0 asistentes, y (2) personas con `FECHA_INGRESO` posterior a esa fecha. Por eso el denominador de una semana puede ser menor que el total de personas activas.
 
 ### Fuente: pestaña vs. "maestro"
 
@@ -112,15 +113,17 @@ El pipeline lee la pestaña `03. Asistencia_Reporting` (log largo, una fila por 
 
 ## Features del dashboard (estado actual)
 
+- **Filtro global de período** (chips Q1/Q2/Q3 combinables, arriba a la derecha de las pestañas): recalcula KPIs, ranking, evolución, tabla/ranking de grupos, tabla de personas y CSV para los quarters seleccionados. **Con los 3 Q activos los helpers `scoped*()` devuelven `DATA.*` sin tocar** → el default es byte-idéntico a antes del filtro (el conteo de personas NO se mueve). Excepciones: la dona por tipo es solo poblacional (no obedece), "En Riesgo" es global (solo el % por fila obedece), la matriz de status tiene su propio selector, y "Participantes"/"% membresía" quedan sobre el roster completo. `process_data.py` expone `asist_qN`/`posibles_qN`/`sesiones_qN` por grupo para combinar con sumas.
+- **Filtro de período local en los modales** (`modalQBar()` + `modalQ` Set): el pop-up de persona y el de grupo tienen chips Q propios, independientes del global, que arrancan copiando el estado global. `openDrilldown`/`openGroupDrilldown` = setup; `renderPersonModal()`/`renderGroupModal()` arman el cuerpo y se re-ejecutan al togglear (`toggleModalQ`).
 - KPIs globales + delta week-over-week (↑↓ vs semana anterior)
 - 4 tabs: Resumen / Grupos / Personas / Riesgo
-- Gráficos: barras por grupo, dona por tipo, evolución semanal, Q1 vs Q2
-- Tablas ordenables por cualquier columna + filtros + búsqueda + exportar CSV
-- Modal persona: racha 🔥/❄️, historial visual por sesión, mini-chart Q1/Q2/Total
+- Gráficos: barras por grupo, dona por tipo, evolución semanal, comparativa Q1/Q2/Q3 por grupo
+- Tablas ordenables por cualquier columna + filtros + búsqueda + exportar CSV (tabla Personas tiene columnas Q1%/Q2%/Q3%)
+- Modal persona: racha 🔥/❄️, historial visual por sesión, mini-chart Q1/Q2/Q3/Total
 - Modal grupo: evolución del grupo + ranking de menor asistencia (clickeable)
 - "Hace N semanas" en lista de riesgo
 - KPI cards navegables → filtran la tabla correspondiente
-- Matriz de transición de status Q1 → Q2
+- Matriz de transición de status con **selector de transición** (Q1→Q2 / Q2→Q3 / Q1→Q3), se recalcula client-side desde `status_q*` (el `status_matrix` que emitía `process_data.py` se eliminó por muerto)
 - **Responsive mobile:** tablas → cards, modal → bottom sheet, tabs con iconos
 
 ---
@@ -140,4 +143,7 @@ El pipeline lee la pestaña `03. Asistencia_Reporting` (log largo, una fila por 
 | 2026-07 | Limpieza de repo: `skills/DESIGN_SKILL.md` eliminado y commiteado; `config/credentials.json` y `config/token.json` (OAuth legacy, nunca trackeados en git, sin referencias en código) borrados localmente. `CLAUDE.md` formaliza este archivo (`.claude/MEMORY.md`) como memoria oficial del proyecto |
 | 2026-07 | Reorg de grupos en el Sheet: `GDA USIL [TBD]` → `GDA USIL` (rename simple, sin código hardcodeado que tocar). `GDC EPSILON` y `GDA FAITH` se disolvieron intencionalmente, miembros repartidos en otros grupos. Grupos nuevos `GDC ETA` y `GDA ULIMA` formados con gente antigua de J1 → por decisión del usuario, NO llevan entrada en `GROUP_START_DATES` (a diferencia de LAMBDA/OMEGA que sí la llevan por ser cohortes nuevas). Detalle completo en `workflows/lineamientos_reporte.md` → Historial de cambios |
 | 2026-07-23 | Eventos EJEC (11/07) y Reencuentro EJEC (18/07) agregados a `EVENTS` en `process_data.py`. Nota: esas dos fechas habían mostrado asistencia casi nula en un fetch anterior porque la mayoría de los grupos aún no habían cargado su asistencia al Sheet en ese momento — no era un problema real, solo datos incompletos al momento del fetch (ver denominador semanal en "Reglas de negocio") |
+| 2026-09-10 (2) | Filtro global de período (multi-select Q1/Q2/Q3) en el dashboard — ver "Features". Helpers JS `scopedPersonas()`/`scopedGrupos()`/`scopedGlobalPct()` (con short-circuit `if(isAllQ()) return DATA.*`) + `pAsist/pTotal/pPct/pStatus` y `gAsist/gPosibles/gPct` (todos con 2º arg `qs=QSEL`); `applyGlobalQ()` re-renderiza al togglear. La dona por tipo quedó estática (poblacional). Eventos J-Fest (15/08) y Alaba (05/09). Rediseño del chart de evolución del modal de grupo (igual al de evolución total) y quitado el eje Y del mini-chart Q por persona. `filterGrupoQ` eliminado (redundante). |
+| 2026-09-10 (3) | Filtro de período LOCAL en los pop-ups (`modalQBar()`, `modalQ`, `toggleModalQ`, `modalState`). `openDrilldown`/`openGroupDrilldown` → setup; cuerpo en `renderPersonModal()`/`renderGroupModal()`. Persona: 4ª tarjeta pasa a ser la selección combinada (label `qShort(modalQ)`, ej. "Q2+Q3"), historial y mini-chart filtrados. Grupo: status cards, N sesiones, chart de evolución y bottom-5 recalculados al `modalQ`. Verificado: conteo 294 estable en todos los estados del filtro global; `series.data` del mini-chart correcto para combos; sin errores JS. |
+| 2026-09-10 | **Q3 agregado.** Q2 dejó de ser "abril en adelante" y ahora es abr–jul; Q3 = ago–TBD. `get_quarter()` en `process_data.py` pasó a 3 ramas y la lógica per-quarter se generalizó a dicts `asist_q`/`total_q`/`pct_q` keyed por `QUARTERS=["Q1","Q2","Q3"]` (persona y grupo). Dashboard: columna Q3% en tabla Personas, 3ª serie en el chart comparativo, opción Q3 en filtro de grupos, 4ª tarjeta + mini-chart en modal de persona, y **selector de transición** en la matriz de status (Q1→Q2 / Q2→Q3 / Q1→Q3, `MATRIX_TRANS` en `generate_dashboard.py`). `sub_insights/analyze.py`: semáforo con Q3% y Δ Q2→Q3, Momentum con dos matrices (helper `momentum_counts`), titulares usan la transición más reciente con datos. Se borró el `status_matrix` del JSON de `process_data.py` — código muerto (nadie lo consumía). Verificado con render headless de las 3 pestañas. |
 | 2026-07-24 | Limpieza en el Sheet: 15 miembros inactivos de `GDC SIGMA` (0% asistencia todo el ciclo, racha -20) dados de baja del grupo — `GRUPO_ACTUAL` y `ROL_ACTUAL` puestos en blanco → salen del pipeline. Además 4 mentores que ya estaban sin grupo (incluido el owner) perdieron su `ROL_ACTUAL` de "Mentor". Ninguno de esos 4 aparecía en el dashboard antes tampoco (ver "Filtro de entrada: `GRUPO_ACTUAL` en blanco"). El conteo total de personas bajó a 309; el maestro del usuario marca 312 (posible desfase entre pestañas) |

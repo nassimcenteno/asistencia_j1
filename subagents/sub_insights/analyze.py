@@ -47,6 +47,16 @@ TIPO_NOMBRE = {"GBU": "Universitario", "GDA": "Amistad", "GDC": "Crecimiento"}
 STATUS_ORDER = ["Fiel", "Activo", "Inconstante", "Inactivo"]
 
 
+def momentum_counts(mdict):
+    """Devuelve (mejoras, caidas, estables, total) de un dict {(s1, s2): n}."""
+    mej = sum(v for (s1, s2), v in mdict.items()
+              if STATUS_ORDER.index(s1) > STATUS_ORDER.index(s2))
+    cai = sum(v for (s1, s2), v in mdict.items()
+              if STATUS_ORDER.index(s1) < STATUS_ORDER.index(s2))
+    est = sum(v for (s1, s2), v in mdict.items() if s1 == s2)
+    return mej, cai, est, mej + cai + est
+
+
 # ── Carga ────────────────────────────────────────────────────────────────────
 with open(INPUT, "r", encoding="utf-8") as f:
     data = json.load(f)
@@ -62,11 +72,13 @@ grupos = defaultdict(lambda: dict(
     asist_total=0, sesiones_total=0,
     asist_q1=0, total_q1=0,
     asist_q2=0, total_q2=0,
+    asist_q3=0, total_q3=0,
     at_risk=0,
 ))
 roles = defaultdict(lambda: dict(asist=0, total=0, n=0))
 fechas = defaultdict(lambda: dict(asistencias=0, total=0, evento=None))
-momentum = defaultdict(int)
+momentum = defaultdict(int)       # transición Q1 → Q2
+momentum_q2q3 = defaultdict(int)  # transición Q2 → Q3
 
 backbone = []        # excluye Mentores y Comentores
 criticos = defaultdict(list)
@@ -84,6 +96,8 @@ for p in personas:
     gr["total_q1"] += p["total_q1"]
     gr["asist_q2"] += p["asist_q2"]
     gr["total_q2"] += p["total_q2"]
+    gr["asist_q3"] += p["asist_q3"]
+    gr["total_q3"] += p["total_q3"]
     if p["at_risk"]:
         gr["at_risk"] += 1
 
@@ -104,13 +118,17 @@ for p in personas:
         sq1 = p.get("status_q1") or "Inactivo"
         sq2 = p.get("status_q2") or "Inactivo"
         momentum[(sq1, sq2)] += 1
+    if p["total_q2"] > 0 and p["total_q3"] > 0:
+        sq2 = p.get("status_q2") or "Inactivo"
+        sq3 = p.get("status_q3") or "Inactivo"
+        momentum_q2q3[(sq2, sq3)] += 1
 
     # Columna vertebral: excluye Mentores y Comentores — se filtra a top 15 en post-procesamiento
     if rol not in ("Mentor", "Comentor"):
         backbone.append(dict(
             nombre=p["nombre_completo"], grupo=g,
             pct=p["pct_total"], racha=p["racha_actual"],
-            pct_q1=p["pct_q1"], pct_q2=p["pct_q2"],
+            pct_q1=p["pct_q1"], pct_q2=p["pct_q2"], pct_q3=p["pct_q3"],
         ))
 
     if p["racha_actual"] <= -4:
@@ -126,6 +144,8 @@ for p in personas:
             fecha_ingreso=p["fecha_ingreso"],
             pct_q2=p["pct_q2"],
             status_q2=p.get("status_q2") or p["status"],
+            pct_q3=p["pct_q3"],
+            status_q3=p.get("status_q3"),
             at_risk=p["at_risk"],
             racha=p["racha_actual"],
         ))
@@ -143,7 +163,9 @@ for nombre, gr in grupos.items():
     pct_global = pct(gr["asist_total"], gr["sesiones_total"])
     pct_q1 = pct(gr["asist_q1"], gr["total_q1"])
     pct_q2 = pct(gr["asist_q2"], gr["total_q2"])
+    pct_q3 = pct(gr["asist_q3"], gr["total_q3"])
     delta = round(pct_q2 - pct_q1, 1) if pct_q1 is not None and pct_q2 is not None else None
+    delta_q2q3 = round(pct_q3 - pct_q2, 1) if pct_q2 is not None and pct_q3 is not None else None
     at_risk_pct = pct(gr["at_risk"], gr["miembros"])
     grupos_calc[nombre] = dict(
         tipo=TIPO_NOMBRE.get(gr["tipo"], gr["tipo"]),
@@ -151,7 +173,9 @@ for nombre, gr in grupos.items():
         pct_global=pct_global,
         pct_q1=pct_q1,
         pct_q2=pct_q2,
+        pct_q3=pct_q3,
         delta=delta,
+        delta_q2q3=delta_q2q3,
         at_risk=gr["at_risk"],
         at_risk_pct=at_risk_pct,
     )
@@ -186,12 +210,15 @@ roles_sorted = sorted(
     reverse=True,
 )
 
-mejoras = sum(v for (s1, s2), v in momentum.items()
-              if STATUS_ORDER.index(s1) > STATUS_ORDER.index(s2))
-caidas = sum(v for (s1, s2), v in momentum.items()
-             if STATUS_ORDER.index(s1) < STATUS_ORDER.index(s2))
-estables = sum(v for (s1, s2), v in momentum.items() if s1 == s2)
-total_momentum = mejoras + caidas + estables
+mejoras, caidas, estables, total_momentum = momentum_counts(momentum)
+mejoras_q2q3, caidas_q2q3, estables_q2q3, total_momentum_q2q3 = momentum_counts(momentum_q2q3)
+
+# Transición más reciente con datos: se usa para insights y titulares.
+if total_momentum_q2q3 > 0:
+    mom_reciente = ("Q2", "Q3", momentum_q2q3, mejoras_q2q3, caidas_q2q3, estables_q2q3, total_momentum_q2q3)
+else:
+    mom_reciente = ("Q1", "Q2", momentum, mejoras, caidas, estables, total_momentum)
+mr_qa, mr_qb, _mr_dict, mr_mej, mr_cai, mr_est, mr_total = mom_reciente
 
 # ── Insights clave ────────────────────────────────────────────────────────────
 pct_q1_global = pct(
@@ -202,11 +229,25 @@ pct_q2_global = pct(
     sum(gr["asist_q2"] for gr in grupos.values()),
     sum(gr["total_q2"] for gr in grupos.values()),
 )
+pct_q3_global = pct(
+    sum(gr["asist_q3"] for gr in grupos.values()),
+    sum(gr["total_q3"] for gr in grupos.values()),
+)
 delta_global = round(pct_q2_global - pct_q1_global, 1) if pct_q1_global and pct_q2_global else None
+delta_global_q2q3 = round(pct_q3_global - pct_q2_global, 1) if pct_q2_global and pct_q3_global else None
 
-grupos_con_delta = [(n, g) for n, g in grupos_calc.items() if g["delta"] is not None]
-top_mejora = max(grupos_con_delta, key=lambda x: x[1]["delta"]) if grupos_con_delta else None
-top_caida = min(grupos_con_delta, key=lambda x: x[1]["delta"]) if grupos_con_delta else None
+# Delta global más reciente: Q2→Q3 si hay datos de Q3, si no Q1→Q2.
+if delta_global_q2q3 is not None:
+    dg_qa, dg_qb, dg_delta, dg_from, dg_to = "Q2", "Q3", delta_global_q2q3, pct_q2_global, pct_q3_global
+else:
+    dg_qa, dg_qb, dg_delta, dg_from, dg_to = "Q1", "Q2", delta_global, pct_q1_global, pct_q2_global
+
+# Delta de grupo más reciente con datos (Q2→Q3 si aplica, si no Q1→Q2).
+_delta_key = "delta_q2q3" if any(g["delta_q2q3"] is not None for g in grupos_calc.values()) else "delta"
+_delta_qa, _delta_qb = ("Q2", "Q3") if _delta_key == "delta_q2q3" else ("Q1", "Q2")
+grupos_con_delta = [(n, g) for n, g in grupos_calc.items() if g[_delta_key] is not None]
+top_mejora = max(grupos_con_delta, key=lambda x: x[1][_delta_key]) if grupos_con_delta else None
+top_caida = min(grupos_con_delta, key=lambda x: x[1][_delta_key]) if grupos_con_delta else None
 top_riesgo = max(grupos_calc.items(), key=lambda x: x[1]["at_risk_pct"] or 0) if grupos_calc else None
 grupos_alerta = [(n, g) for n, g in grupos_calc.items() if (g["at_risk_pct"] or 0) > 40]
 
@@ -216,19 +257,20 @@ pct_risk_global = pct(kpis["total_at_risk"], kpis["total_personas"])
 # Construir lista de insights: (tipo, texto) — tipo: "pos" | "neg" | "neu"
 key_insights = []
 
-if delta_global is not None:
-    if delta_global > 2:
-        key_insights.append(("pos", f"Tendencia positiva: la asistencia global subió {delta_global}% de Q1 a Q2 ({fp(pct_q1_global)}% → {fp(pct_q2_global)}%)"))
-    elif delta_global < -2:
-        key_insights.append(("neg", f"Tendencia negativa: la asistencia global cayó {abs(delta_global)}% de Q1 a Q2 ({fp(pct_q1_global)}% → {fp(pct_q2_global)}%)"))
+if dg_delta is not None:
+    if dg_delta > 2:
+        key_insights.append(("pos", f"Tendencia positiva: la asistencia global subió {dg_delta}% de {dg_qa} a {dg_qb} ({fp(dg_from)}% → {fp(dg_to)}%)"))
+    elif dg_delta < -2:
+        key_insights.append(("neg", f"Tendencia negativa: la asistencia global cayó {abs(dg_delta)}% de {dg_qa} a {dg_qb} ({fp(dg_from)}% → {fp(dg_to)}%)"))
     else:
-        key_insights.append(("neu", f"Asistencia estable entre quarters: Q1 {fp(pct_q1_global)}% → Q2 {fp(pct_q2_global)}% (variación mínima de {delta_global}%)"))
+        key_insights.append(("neu", f"Asistencia estable entre quarters: {dg_qa} {fp(dg_from)}% → {dg_qb} {fp(dg_to)}% (variación mínima de {dg_delta}%)"))
 
+_delta_pct_col = "pct_q3" if _delta_key == "delta_q2q3" else "pct_q2"
 if top_mejora:
-    key_insights.append(("pos", f"Grupo con mayor mejora Q1→Q2: {top_mejora[0]} (+{top_mejora[1]['delta']}%, ahora en {fp(top_mejora[1]['pct_q2'])}%)"))
+    key_insights.append(("pos", f"Grupo con mayor mejora {_delta_qa}→{_delta_qb}: {top_mejora[0]} (+{top_mejora[1][_delta_key]}%, ahora en {fp(top_mejora[1][_delta_pct_col])}%)"))
 
-if top_caida and top_caida[1]["delta"] is not None and top_caida[1]["delta"] < -3:
-    key_insights.append(("neg", f"Grupo con mayor caída Q1→Q2: {top_caida[0]} ({top_caida[1]['delta']}%, ahora en {fp(top_caida[1]['pct_q2'])}%)"))
+if top_caida and top_caida[1][_delta_key] is not None and top_caida[1][_delta_key] < -3:
+    key_insights.append(("neg", f"Grupo con mayor caída {_delta_qa}→{_delta_qb}: {top_caida[0]} ({top_caida[1][_delta_key]}%, ahora en {fp(top_caida[1][_delta_pct_col])}%)"))
 
 for gn, ga in sorted(grupos_alerta, key=lambda x: -(x[1]["at_risk_pct"] or 0))[:2]:
     key_insights.append(("neg", f"Concentración de riesgo en {gn}: {ga['at_risk']}/{ga['miembros']} miembros en riesgo ({fp(ga['at_risk_pct'])}%)"))
@@ -238,13 +280,13 @@ if pct_risk_global and pct_risk_global > 25:
 elif pct_risk_global:
     key_insights.append(("neu", f"{kpis['total_at_risk']} personas en riesgo ({fp(pct_risk_global)}% del total)"))
 
-if total_momentum > 0:
-    if mejoras > caidas * 1.3:
-        key_insights.append(("pos", f"Buen momentum entre quarters: {mejoras} personas mejoraron de categoría vs {caidas} que cayeron"))
-    elif caidas > mejoras * 1.3:
-        key_insights.append(("neg", f"Momentum preocupante: {caidas} personas cayeron de categoría entre Q1 y Q2 vs {mejoras} que mejoraron"))
+if mr_total > 0:
+    if mr_mej > mr_cai * 1.3:
+        key_insights.append(("pos", f"Buen momentum {mr_qa}→{mr_qb}: {mr_mej} personas mejoraron de categoría vs {mr_cai} que cayeron"))
+    elif mr_cai > mr_mej * 1.3:
+        key_insights.append(("neg", f"Momentum preocupante {mr_qa}→{mr_qb}: {mr_cai} personas cayeron de categoría vs {mr_mej} que mejoraron"))
     else:
-        key_insights.append(("neu", f"Momentum equilibrado entre quarters: {mejoras} mejoraron, {caidas} cayeron, {estables} estables"))
+        key_insights.append(("neu", f"Momentum equilibrado {mr_qa}→{mr_qb}: {mr_mej} mejoraron, {mr_cai} cayeron, {mr_est} estables"))
 
 if best_event and avg_normal:
     ev_delta = round(best_event[2] - avg_normal, 1)
@@ -292,51 +334,58 @@ def build_md():
 
     # 1. Semáforo de grupos
     a("## 1. Semáforo de Grupos\n")
-    a("| Grupo | Tipo | N | % Global | Q1% | Q2% | Δ Q1→Q2 | En Riesgo |")
-    a("|-------|------|---|----------|-----|-----|---------|-----------|")
+    a("| Grupo | Tipo | N | % Global | Q1% | Q2% | Q3% | Δ Q1→Q2 | Δ Q2→Q3 | En Riesgo |")
+    a("|-------|------|---|----------|-----|-----|-----|---------|---------|-----------|")
     for nombre, g in grupos_sorted:
         a(f"| {nombre} | {g['tipo']} | {g['miembros']} | {fp(g['pct_global'])}% "
-          f"| {fp(g['pct_q1'])}% | {fp(g['pct_q2'])}% "
-          f"| {delta_label(g['delta'])} | {g['at_risk']} ({fp(g['at_risk_pct'])}%) |")
+          f"| {fp(g['pct_q1'])}% | {fp(g['pct_q2'])}% | {fp(g['pct_q3'])}% "
+          f"| {delta_label(g['delta'])} | {delta_label(g['delta_q2q3'])} "
+          f"| {g['at_risk']} ({fp(g['at_risk_pct'])}%) |")
     a("")
 
-    # 2. Momentum Q1→Q2
-    a("## 2. Momentum Individual Q1→Q2\n")
-    a(f"_Solo personas con sesiones en ambos quarters. Total: {total_momentum} personas._\n")
-    a(f"- **Mejoraron** (subieron de categoría): {mejoras} ({fp(pct(mejoras, total_momentum))}%)")
-    a(f"- **Se mantuvieron** en misma categoría: {estables} ({fp(pct(estables, total_momentum))}%)")
-    a(f"- **Cayeron** (bajaron de categoría): {caidas} ({fp(pct(caidas, total_momentum))}%)")
-    a("")
-    a("**Matriz de transición** (filas = Q1, columnas = Q2):\n")
-    a("| Q1 \\ Q2 | Fiel | Activo | Inconstante | Inactivo |")
-    a("|---------|------|--------|-------------|----------|")
-    for s1 in STATUS_ORDER:
-        row = [str(momentum.get((s1, s2), 0)) for s2 in STATUS_ORDER]
-        a(f"| **{s1}** | {' | '.join(row)} |")
-    a("")
-    grandes_caidas = [(s1, s2, v) for (s1, s2), v in momentum.items()
-                      if STATUS_ORDER.index(s2) - STATUS_ORDER.index(s1) >= 2 and v > 0]
-    grandes_mejoras = [(s1, s2, v) for (s1, s2), v in momentum.items()
-                       if STATUS_ORDER.index(s1) - STATUS_ORDER.index(s2) >= 2 and v > 0]
-    if grandes_caidas:
-        a("**Caídas drásticas** (saltaron 2+ categorías):")
-        for s1, s2, v in sorted(grandes_caidas, key=lambda x: -x[2]):
-            a(f"- {s1} → {s2}: {v} personas")
+    # 2. Momentum entre quarters
+    a("## 2. Momentum Individual entre Quarters\n")
+    a("_Solo personas con sesiones en ambos quarters de la transición._\n")
+    for qa, qb, mdict in (("Q1", "Q2", momentum), ("Q2", "Q3", momentum_q2q3)):
+        mej, cai, est, tot = momentum_counts(mdict)
+        a(f"### {qa} → {qb}  ({tot} personas)\n")
+        if tot == 0:
+            a(f"_Sin datos de {qb} todavía._\n")
+            continue
+        a(f"- **Mejoraron** (subieron de categoría): {mej} ({fp(pct(mej, tot))}%)")
+        a(f"- **Se mantuvieron** en misma categoría: {est} ({fp(pct(est, tot))}%)")
+        a(f"- **Cayeron** (bajaron de categoría): {cai} ({fp(pct(cai, tot))}%)")
         a("")
-    if grandes_mejoras:
-        a("**Recuperaciones notables** (subieron 2+ categorías):")
-        for s1, s2, v in sorted(grandes_mejoras, key=lambda x: -x[2]):
-            a(f"- {s1} → {s2}: {v} personas")
+        a(f"**Matriz de transición** (filas = {qa}, columnas = {qb}):\n")
+        a(f"| {qa} \\ {qb} | Fiel | Activo | Inconstante | Inactivo |")
+        a("|---------|------|--------|-------------|----------|")
+        for s1 in STATUS_ORDER:
+            row = [str(mdict.get((s1, s2), 0)) for s2 in STATUS_ORDER]
+            a(f"| **{s1}** | {' | '.join(row)} |")
         a("")
+        grandes_caidas = [(s1, s2, v) for (s1, s2), v in mdict.items()
+                          if STATUS_ORDER.index(s2) - STATUS_ORDER.index(s1) >= 2 and v > 0]
+        grandes_mejoras = [(s1, s2, v) for (s1, s2), v in mdict.items()
+                           if STATUS_ORDER.index(s1) - STATUS_ORDER.index(s2) >= 2 and v > 0]
+        if grandes_caidas:
+            a("**Caídas drásticas** (saltaron 2+ categorías):")
+            for s1, s2, v in sorted(grandes_caidas, key=lambda x: -x[2]):
+                a(f"- {s1} → {s2}: {v} personas")
+            a("")
+        if grandes_mejoras:
+            a("**Recuperaciones notables** (subieron 2+ categorías):")
+            for s1, s2, v in sorted(grandes_mejoras, key=lambda x: -x[2]):
+                a(f"- {s1} → {s2}: {v} personas")
+            a("")
 
     # 3. Columna Vertebral
     a("## 3. Columna Vertebral — Top 15 (excluye Mentores y Comentores)\n")
     a(f"_Las 15 personas con mejor asistencia total del ciclo._\n")
     if backbone:
-        a("| # | Persona | Grupo | % Total | Q1% | Q2% | Racha |")
-        a("|---|---------|-------|---------|-----|-----|-------|")
+        a("| # | Persona | Grupo | % Total | Q1% | Q2% | Q3% | Racha |")
+        a("|---|---------|-------|---------|-----|-----|-----|-------|")
         for i, b in enumerate(backbone, 1):
-            a(f"| {i} | {b['nombre']} | {b['grupo']} | {fp(b['pct'])}% | {fp(b['pct_q1'])}% | {fp(b['pct_q2'])}% | +{b['racha']} |")
+            a(f"| {i} | {b['nombre']} | {b['grupo']} | {fp(b['pct'])}% | {fp(b['pct_q1'])}% | {fp(b['pct_q2'])}% | {fp(b['pct_q3'])}% | +{b['racha']} |")
     a("")
 
     # 4. Alertas Críticas
@@ -386,12 +435,13 @@ def build_md():
     a("## 8. Nuevos Ingresos (FECHA_INGRESO)\n")
     a(f"_Total: {len(nuevos)} personas con fecha de ingreso registrada._\n")
     if nuevos:
-        a("| Persona | Grupo | Ingreso | Q2% | Status Q2 | En Riesgo | Racha |")
-        a("|---------|-------|---------|-----|-----------|-----------|-------|")
+        a("| Persona | Grupo | Ingreso | Q2% | Status Q2 | Q3% | Status Q3 | En Riesgo | Racha |")
+        a("|---------|-------|---------|-----|-----------|-----|-----------|-----------|-------|")
         for n in nuevos:
             riesgo = "⚠️ Sí" if n["at_risk"] else "No"
             a(f"| {n['nombre']} | {n['grupo']} | {n['fecha_ingreso']} "
-              f"| {fp(n['pct_q2'])}% | {n['status_q2']} | {riesgo} | {n['racha']} |")
+              f"| {fp(n['pct_q2'])}% | {n['status_q2'] or '—'} "
+              f"| {fp(n['pct_q3'])}% | {n['status_q3'] or '—'} | {riesgo} | {n['racha']} |")
         a("")
         a("### Seguimiento Nuevos Ingresos\n")
         a(f"- **Promedio Q2:** {fp(ni_prom_q2)}% de asistencia desde su ingreso")
@@ -516,51 +566,63 @@ def build_html():
 
     # ── Sección 1: Semáforo ──
     rows1 = "".join(
-        f"<tr class='hover:bg-slate-50 transition-all duration-200 {row_tint(g['delta'])}'>"
+        f"<tr class='hover:bg-slate-50 transition-all duration-200 {row_tint(g['delta_q2q3'] if g['delta_q2q3'] is not None else g['delta'])}'>"
         f"{td(nombre, 'font-medium text-slate-900')}"
         f"{td(g['tipo'])}"
         f"{td(str(g['miembros']), 'text-center')}"
         f"<td class='px-6 py-4 text-sm font-semibold text-slate-700'>{fp(g['pct_global'])}%</td>"
         f"{td(fp(g['pct_q1'])+'%')}"
         f"{td(fp(g['pct_q2'])+'%')}"
+        f"{td(fp(g['pct_q3'])+'%')}"
         f"<td class='px-6 py-4'>{delta_badge(g['delta'])}</td>"
+        f"<td class='px-6 py-4'>{delta_badge(g['delta_q2q3'])}</td>"
         + td(str(g['at_risk']) + " (" + fp(g['at_risk_pct']) + "%)", 'text-center')
         + "</tr>"
         for nombre, g in grupos_sorted
     )
     table1 = (
         f'<div class="overflow-x-auto"><table class="w-full">'
-        f'<thead class="bg-slate-50/75"><tr>{"".join(th(h) for h in ["Grupo","Tipo","N","% Global","Q1%","Q2%","Δ Q1→Q2","En Riesgo"])}</tr></thead>'
+        f'<thead class="bg-slate-50/75"><tr>{"".join(th(h) for h in ["Grupo","Tipo","N","% Global","Q1%","Q2%","Q3%","Δ Q1→Q2","Δ Q2→Q3","En Riesgo"])}</tr></thead>'
         f'<tbody class="divide-y divide-slate-100">{rows1}</tbody></table></div>'
     )
     sec1 = section("Semáforo de Grupos", "1", table1)
 
     # ── Sección 2: Momentum ──
-    mom_summary = (
-        f'<div class="grid grid-cols-3 gap-4 mb-6">'
-        f'<div class="bg-emerald-50 rounded-xl px-4 py-4 text-center"><p class="text-xs text-emerald-600 font-semibold uppercase tracking-wider mb-1">Mejoraron</p><p class="text-3xl font-bold text-emerald-700">{mejoras}</p><p class="text-xs text-emerald-600 mt-1">{fp(pct(mejoras, total_momentum))}%</p></div>'
-        f'<div class="bg-slate-100 rounded-xl px-4 py-4 text-center"><p class="text-xs text-slate-500 font-semibold uppercase tracking-wider mb-1">Se mantuvieron</p><p class="text-3xl font-bold text-slate-700">{estables}</p><p class="text-xs text-slate-500 mt-1">{fp(pct(estables, total_momentum))}%</p></div>'
-        f'<div class="bg-rose-50 rounded-xl px-4 py-4 text-center"><p class="text-xs text-rose-600 font-semibold uppercase tracking-wider mb-1">Cayeron</p><p class="text-3xl font-bold text-rose-700">{caidas}</p><p class="text-xs text-rose-600 mt-1">{fp(pct(caidas, total_momentum))}%</p></div>'
-        f'</div>'
-    )
-    rows2 = "".join(
-        f"<tr class='hover:bg-slate-50 transition-colors'>"
-        f"<td class='px-6 py-4 text-sm font-semibold text-slate-700 bg-slate-50/50'>Q1: {s1}</td>"
-        + "".join(
-            f"<td class='px-6 py-4 text-sm text-center font-medium "
-            f"{'text-emerald-700 bg-emerald-50/50' if s1==s2 else 'text-slate-600'}'>"
-            f"{momentum.get((s1,s2),0)}</td>"
-            for s2 in STATUS_ORDER
-        ) + "</tr>"
-        for s1 in STATUS_ORDER
-    )
-    q1_header = '<th class="px-6 py-3 text-xs font-semibold uppercase tracking-wider text-slate-400">Q1 \\ Q2</th>'
-    matrix2 = (
-        f'<div class="overflow-x-auto"><table class="w-full">'
-        f'<thead class="bg-slate-50/75"><tr>{q1_header}{"".join(th(s) for s in STATUS_ORDER)}</tr></thead>'
-        f'<tbody class="divide-y divide-slate-100">{rows2}</tbody></table></div>'
-    )
-    sec2 = section("Momentum Individual Q1→Q2", "2", mom_summary + matrix2)
+    def momentum_block(qa, qb, mdict):
+        mej, cai, est, tot = momentum_counts(mdict)
+        if tot == 0:
+            return (f'<p class="text-sm font-semibold text-slate-700 mb-2">{qa} → {qb}</p>'
+                    f'<p class="text-sm text-slate-400 mb-6">Sin datos de {qb} todavía.</p>')
+        summary = (
+            f'<p class="text-sm font-semibold text-slate-700 mb-3">{qa} → {qb} '
+            f'<span class="text-slate-400 font-normal">({tot} personas)</span></p>'
+            f'<div class="grid grid-cols-3 gap-4 mb-4">'
+            f'<div class="bg-emerald-50 rounded-xl px-4 py-4 text-center"><p class="text-xs text-emerald-600 font-semibold uppercase tracking-wider mb-1">Mejoraron</p><p class="text-3xl font-bold text-emerald-700">{mej}</p><p class="text-xs text-emerald-600 mt-1">{fp(pct(mej, tot))}%</p></div>'
+            f'<div class="bg-slate-100 rounded-xl px-4 py-4 text-center"><p class="text-xs text-slate-500 font-semibold uppercase tracking-wider mb-1">Se mantuvieron</p><p class="text-3xl font-bold text-slate-700">{est}</p><p class="text-xs text-slate-500 mt-1">{fp(pct(est, tot))}%</p></div>'
+            f'<div class="bg-rose-50 rounded-xl px-4 py-4 text-center"><p class="text-xs text-rose-600 font-semibold uppercase tracking-wider mb-1">Cayeron</p><p class="text-3xl font-bold text-rose-700">{cai}</p><p class="text-xs text-rose-600 mt-1">{fp(pct(cai, tot))}%</p></div>'
+            f'</div>'
+        )
+        body = "".join(
+            f"<tr class='hover:bg-slate-50 transition-colors'>"
+            f"<td class='px-6 py-4 text-sm font-semibold text-slate-700 bg-slate-50/50'>{qa}: {s1}</td>"
+            + "".join(
+                f"<td class='px-6 py-4 text-sm text-center font-medium "
+                f"{'text-emerald-700 bg-emerald-50/50' if s1==s2 else 'text-slate-600'}'>"
+                f"{mdict.get((s1,s2),0)}</td>"
+                for s2 in STATUS_ORDER
+            ) + "</tr>"
+            for s1 in STATUS_ORDER
+        )
+        header = f'<th class="px-6 py-3 text-xs font-semibold uppercase tracking-wider text-slate-400">{qa} &rarr; {qb}</th>'
+        matrix = (
+            f'<div class="overflow-x-auto mb-8"><table class="w-full">'
+            f'<thead class="bg-slate-50/75"><tr>{header}{"".join(th(s) for s in STATUS_ORDER)}</tr></thead>'
+            f'<tbody class="divide-y divide-slate-100">{body}</tbody></table></div>'
+        )
+        return summary + matrix
+
+    sec2 = section("Momentum Individual entre Quarters", "2",
+                   momentum_block("Q1", "Q2", momentum) + momentum_block("Q2", "Q3", momentum_q2q3))
 
     # ── Sección 3: Columna Vertebral ──
     rows3 = "".join(
@@ -570,13 +632,14 @@ def build_html():
         f"<td class='px-6 py-4 text-sm font-bold text-emerald-700'>{fp(b['pct'])}%</td>"
         f"<td class='px-6 py-4 text-sm text-slate-600'>{fp(b['pct_q1'])}%</td>"
         f"<td class='px-6 py-4 text-sm text-slate-600'>{fp(b['pct_q2'])}%</td>"
+        f"<td class='px-6 py-4 text-sm text-slate-600'>{fp(b['pct_q3'])}%</td>"
         f"<td class='px-6 py-4 text-sm font-semibold text-indigo-600'>+{b['racha']}</td></tr>"
         for i, b in enumerate(backbone, 1)
     )
     table3 = (
         f'<p class="text-xs text-slate-400 mb-4">Top 15 personas (excluyendo Mentores y Comentores)</p>'
         f'<div class="overflow-x-auto"><table class="w-full">'
-        f'<thead class="bg-slate-50/75"><tr>{"".join(th(h) for h in ["#","Persona","Grupo","% Total","Q1%","Q2%","Racha"])}</tr></thead>'
+        f'<thead class="bg-slate-50/75"><tr>{"".join(th(h) for h in ["#","Persona","Grupo","% Total","Q1%","Q2%","Q3%","Racha"])}</tr></thead>'
         f'<tbody class="divide-y divide-slate-100">{rows3}</tbody></table></div>'
     )
     sec3 = section("Columna Vertebral — Top 15 (excluye Mentores y Comentores)", "3", table3)
@@ -654,7 +717,9 @@ def build_html():
     rows8 = "".join(
         f"<tr class='hover:bg-slate-50 transition-colors'>{td(n['nombre'],'font-medium')}{td(n['grupo'])}{td(n['fecha_ingreso'])}"
         f"<td class='px-6 py-4 text-sm font-bold text-slate-700'>{fp(n['pct_q2'])}%</td>"
-        f"{td(n['status_q2'])}"
+        f"{td(n['status_q2'] or '—')}"
+        f"<td class='px-6 py-4 text-sm font-bold text-slate-700'>{fp(n['pct_q3'])}%</td>"
+        f"{td(n['status_q3'] or '—')}"
         + risk_cell(n['at_risk'])
         + racha_cell(n['racha'])
         + "</tr>"
@@ -663,7 +728,7 @@ def build_html():
     table8 = (
         f'<p class="text-xs text-slate-400 mb-4">Total: {len(nuevos)} personas</p>'
         f'<div class="overflow-x-auto"><table class="w-full">'
-        f'<thead class="bg-slate-50/75"><tr>{"".join(th(h) for h in ["Persona","Grupo","Ingreso","Q2%","Status Q2","En Riesgo","Racha"])}</tr></thead>'
+        f'<thead class="bg-slate-50/75"><tr>{"".join(th(h) for h in ["Persona","Grupo","Ingreso","Q2%","Status Q2","Q3%","Status Q3","En Riesgo","Racha"])}</tr></thead>'
         f'<tbody class="divide-y divide-slate-100">{rows8}</tbody></table></div>'
     )
 

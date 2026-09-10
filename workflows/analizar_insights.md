@@ -2,7 +2,7 @@
 
 ## Qué hace este sub-agente
 
-Analiza el reporte de asistencia J1 en profundidad y produce insights que el dashboard no puede mostrar directamente: momentum individual Q1→Q2, alertas críticas agrupadas, impacto de eventos, análisis por rol, columna vertebral, nuevos ingresos y semáforo de grupos.
+Analiza el reporte de asistencia J1 en profundidad y produce insights que el dashboard no puede mostrar directamente: momentum individual entre quarters (Q1→Q2 y Q2→Q3), alertas críticas agrupadas, impacto de eventos, análisis por rol, columna vertebral, nuevos ingresos y semáforo de grupos.
 
 ---
 
@@ -53,7 +53,7 @@ Los archivos anteriores se conservan en `reports/` — nunca se sobreescriben.
 |---|---------|-------------|
 | 0 | KPIs Globales | Resumen rápido del ciclo |
 | 1 | Semáforo de Grupos | Comparar grupos, ver cuáles subieron/bajaron |
-| 2 | Momentum Q1→Q2 | Entender retención/churn individual entre quarters |
+| 2 | Momentum entre Quarters | Retención/churn individual: dos matrices, Q1→Q2 y Q2→Q3 |
 | 3 | Columna Vertebral | Identificar los más comprometidos del ciclo |
 | 4 | Alertas Críticas | Ver quiénes necesitan atención pastoral urgente |
 | 5 | Impacto de Eventos | Evaluar si los eventos especiales movieron la aguja |
@@ -66,8 +66,9 @@ Los archivos anteriores se conservan en `reports/` — nunca se sobreescriben.
 ## Notas de interpretación (no alucinar contexto)
 
 - **Delta Q2 negativo en LAMBDA / OMEGA (antes "NEW BETTA")**: esperado. Son grupos creados el 16/05, solo tienen sesiones desde esa fecha a nivel GRUPO. Su denominador Q2 es menor → % puede parecer bajo vs grupos con todo el ciclo.
-- **pct_q1 = "—" en grupos nuevos**: correcto, no tenían sesiones en Q1.
-- **Momentum matrix**: solo incluye personas con sesiones en AMBOS quarters. Personas con solo Q2 (nuevos ingresos tardíos) NO aparecen.
+- **pct_q1 = "—" en grupos nuevos**: correcto, no tenían sesiones en Q1. Igual con **pct_q3 = "—"** hasta que haya sesiones de agosto en adelante cargadas en el Sheet.
+- **Quarters (desde 2026-09):** Q1 = ene–mar, Q2 = abr–**jul**, Q3 = ago–TBD. La sección Momentum trae **dos matrices**: Q1→Q2 y Q2→Q3. Los titulares (insight clave, `top_mejora`/`top_caida`, delta global) usan la transición más reciente con datos (Q2→Q3 si Q3 ya tiene sesiones, si no Q1→Q2).
+- **Momentum matrix**: cada matriz solo incluye personas con sesiones en AMBOS quarters de esa transición. Nuevos ingresos que solo tienen un quarter NO aparecen.
 - **Racha positiva**: sesiones consecutivas asistidas. Racha negativa: sesiones consecutivas ausentes.
 - **at_risk**: definido como 0 asistencias en las últimas 4 sesiones que aplican al grupo. Es dinámico.
 - **Ojo con `total_sesiones` a nivel persona vs. nivel grupo (desde 2026-07):** `p["total_sesiones"]`/`p["sesiones"]` reflejan el historial de la PERSONA (independiente de `GROUP_START_DATES` — cuenta desde su propia `FECHA_INGRESO`, o desde el inicio del ciclo si no tiene). Este sub-agente agrega esos campos por grupo (`gr["sesiones_total"]`), así que su "semáforo de grupos" puede diferir del número que muestra el dashboard principal (que calcula el nivel grupo por separado, aplicando `GROUP_START_DATES`). Si una pregunta requiere el número oficial de sesiones de un grupo, usar el dashboard (`d["grupos"]`), no este reporte.
