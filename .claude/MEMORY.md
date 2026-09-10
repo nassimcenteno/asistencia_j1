@@ -21,8 +21,9 @@ config/                        ← Credenciales (gitignored, NUNCA subir)
 tools/                         ← Scripts Python deterministas
   fetch_sheets_data.py         ← Google Sheets → .tmp/asistencia_raw.json
   process_data.py              ← Reglas de negocio → .tmp/asistencia_processed.json
-  generate_dashboard.py        ← JSON → .tmp/dashboard.html
-  run_report.py                ← Orquestador: corre los 3 en secuencia
+  generate_dashboard.py        ← ~40 líneas: inyecta el JSON en el template → .tmp/dashboard.html
+  dashboard_template.html      ← TODA la UI (HTML/CSS/JS). Marcador __ASISTENCIA_DATA__ = const DATA
+  run_report.py                ← Orquestador: corre fetch → process → generate en secuencia
 
 subagents/sub_insights/        ← Sub-agente de análisis profundo (a demanda)
   analyze.py                   ← Lee asistencia_processed.json → reports/insights_report_YYYY-MM-DD.md/.html
@@ -42,7 +43,7 @@ workflows/                     ← SOPs en Markdown
 .env                           ← SHEET_ID, SHEET_NAME (gitignored)
 ```
 
-**Nota:** `skills/DESIGN_SKILL.md` fue eliminado (2026-07) — la carpeta `skills/` sigue existiendo en `CLAUDE.md` como concepto pero hoy está vacía. Si se necesitan estándares de UI/UX para el dashboard, evaluar recrearla.
+**Nota:** `skills/` se menciona en `CLAUDE.md` como concepto pero no existe en disco (se eliminó `skills/DESIGN_SKILL.md` en 2026-07). Si se necesitan estándares de UI/UX para el dashboard, recrear `skills/` con el documento correspondiente.
 
 ---
 
@@ -52,8 +53,10 @@ workflows/                     ← SOPs en Markdown
 |---|---|---|---|
 | `fetch_sheets_data.py` | Google Sheets (SA o env var) | `asistencia_raw.json` | Paso 1 |
 | `process_data.py` | `asistencia_raw.json` | `asistencia_processed.json` | Paso 2 |
-| `generate_dashboard.py` | `asistencia_processed.json` | `dashboard.html` | Paso 3 |
+| `generate_dashboard.py` + `dashboard_template.html` | `asistencia_processed.json` | `dashboard.html` | Paso 3 |
 | `run_report.py` | — | Corre los 3 en secuencia | Uso local |
+
+**Editar el dashboard = editar `tools/dashboard_template.html`** (HTML/CSS/JS normal, sin llaves duplicadas). `generate_dashboard.py` solo hace `template.replace("__ASISTENCIA_DATA__", json)`.
 
 **Ejecución local:** `python tools/run_report.py`
 
@@ -93,7 +96,7 @@ El pipeline separa 3 cálculos independientes — ver sección 10 de `lineamient
 
 **Por qué:** el Sheet solo tiene `GRUPO_ACTUAL` (grupo de hoy), no histórico por fecha. Aplicarle `GROUP_START_DATES` a una persona que fue reasignada a un grupo nuevo/renombrado le borraría asistencia real de antes del cambio.
 
-**Cuidado al tocar el dashboard:** el modal de grupo (`openGroupDrilldown` en `generate_dashboard.py`) debe usar `sesiones_grupo`, no `sesiones` — usar el campo equivocado ahí fue un bug real (mostraba 18 sesiones en vez de 8 para GDC OMEGA).
+**Cuidado al tocar el dashboard:** el modal de grupo (`renderGroupModal` en `dashboard_template.html`) debe usar `sesiones_grupo`, no `sesiones` — usar el campo equivocado ahí fue un bug real (mostraba 18 sesiones en vez de 8 para GDC OMEGA).
 
 **Riesgo conocido:** `GROUP_START_DATES`/`ATTENDANCE_DRIVEN_GROUPS`/`EXCEPTIONS` matchean por nombre de grupo (texto libre, sin ID estable). Si el Sheet renombra un grupo, la regla se desactiva **sin error** — pasó con GDC NEW BETTA → GDC OMEGA (2026-07).
 
@@ -127,6 +130,14 @@ El pipeline lee la pestaña `03. Asistencia_Reporting` (log largo, una fila por 
 - **Responsive mobile:** tablas → cards, modal → bottom sheet, tabs con iconos
 
 ---
+
+## Limpieza estructural (2026-09-10)
+
+- **`generate_dashboard.py`: 1255 → ~40 líneas.** La UI se extrajo a `tools/dashboard_template.html` (archivo HTML real, sin `{{`/`}}`). El generador solo inyecta el JSON en el marcador `__ASISTENCIA_DATA__`. Se verificó que el `dashboard.html` de salida quedó **byte-idéntico**.
+- **`process_data.py`:** se eliminó `get_active_from()` (era `return ingreso`, identidad muerta) y el alias `group_af_map` (se usa `GROUP_START_DATES` directo); `"excepciones"` salió del JSON de salida (nadie lo consumía, como pasó con `status_matrix`); `evolucion` calcula asistentes por fecha con un `Counter` en un solo recorrido en vez de re-escanear personas por cada fecha; `build_historial` computa `iso` una vez.
+- **`analyze.py`:** se eliminó `top_riesgo` (variable muerta) y el `_mr_dict` del tuple de `mom_reciente`.
+- **`dashboard_template.html`:** se quitó el bloque vacío `if(page==='riesgo'){}` de `navToStatus`.
+- **`requirements.txt`:** se quitó `google-auth-oauthlib` (era para el flujo OAuth que se eliminó en 2026-07; hoy solo se usa Service Account).
 
 ## Aprendizajes técnicos
 

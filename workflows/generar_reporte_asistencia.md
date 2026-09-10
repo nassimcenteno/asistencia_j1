@@ -23,8 +23,10 @@ Generar un dashboard HTML interactivo con la asistencia semanal del grupo J1 de 
 |---|---|---|---|
 | `fetch_sheets_data.py` | Google Sheets | `.tmp/asistencia_raw.json` | Descarga datos crudos vía Service Account |
 | `process_data.py` | `asistencia_raw.json` | `.tmp/asistencia_processed.json` | Aplica todas las reglas de negocio |
-| `generate_dashboard.py` | `asistencia_processed.json` | `.tmp/dashboard.html` | Genera el HTML interactivo |
+| `generate_dashboard.py` | `asistencia_processed.json` + `tools/dashboard_template.html` | `.tmp/dashboard.html` | Inyecta el JSON en el template (`__ASISTENCIA_DATA__` → `const DATA`). ~40 líneas |
 | `run_report.py` | — | Corre los 3 anteriores | Orquestador para uso local |
+
+**La UI del dashboard vive en `tools/dashboard_template.html`** — HTML/CSS/JS normal. Para cambiar el dashboard se edita ese archivo directamente (no hay f-string con llaves duplicadas). `generate_dashboard.py` no contiene markup.
 
 ---
 

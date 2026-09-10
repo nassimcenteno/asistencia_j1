@@ -1,7 +1,7 @@
 # Lineamientos del Reporte de Asistencia — J1
 
 > **FUENTE DE VERDAD para todas las reglas de negocio.**
-> Antes de modificar `process_data.py` o `generate_dashboard.py`, leer este archivo.
+> Antes de modificar `process_data.py` o `dashboard_template.html`, leer este archivo.
 > Cuando el usuario da un nuevo lineamiento permanente, agregarlo aquí Y al código.
 
 ---

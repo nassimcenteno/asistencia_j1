@@ -8,7 +8,7 @@ import json
 import sys
 from pathlib import Path
 from datetime import datetime, date
-from collections import defaultdict
+from collections import defaultdict, Counter
 
 ROOT = Path(__file__).parent.parent
 TMP_DIR = ROOT / ".tmp"
@@ -57,10 +57,8 @@ GROUP_START_DATES: dict[str, date] = {
 
 QUARTERS = ["Q1", "Q2", "Q3"]
 
-
-def get_active_from(ingreso: date) -> date:
-    """Sesiones cuentan desde esta fecha (inclusive)."""
-    return ingreso
+# Las sesiones de una persona / grupo cuentan desde su fecha de inicio (inclusive).
+# FECHA_INGRESO y GROUP_START_DATES se usan tal cual, sin desplazamiento.
 
 
 def get_quarter(d: date) -> str:
@@ -108,15 +106,16 @@ def session_applies_to_group(session_date: date, group_name: str) -> bool:
 
 
 def build_historial(fechas: list[date], fechas_asistidas: set[str]) -> list[dict]:
-    return [
-        {
-            "fecha": d.isoformat(),
-            "asistio": d.isoformat() in fechas_asistidas,
+    out = []
+    for d in fechas:
+        iso = d.isoformat()
+        out.append({
+            "fecha": iso,
+            "asistio": iso in fechas_asistidas,
             "quarter": get_quarter(d),
-            "evento": EVENTS.get(d.isoformat()),
-        }
-        for d in fechas
-    ]
+            "evento": EVENTS.get(iso),
+        })
+    return out
 
 
 def main():
@@ -175,7 +174,6 @@ def main():
     # ---------------------------------------------------------------------------
     personas: dict = {}
     all_sessions: set[date] = set()
-    group_af_map = {g: get_active_from(d) for g, d in GROUP_START_DATES.items()}
     # (grupo_upper, fecha_iso) -> nro de asistentes de ese grupo esa fecha.
     group_attendance: dict[tuple[str, str], int] = defaultdict(int)
 
@@ -223,7 +221,7 @@ def main():
                 "es_miembro": tipo_miembro in ("Miembro Bautizado", "Transferido"),
                 "tipo_grupo": tipo_grupo_raw,
                 "fecha_ingreso": fi_date.isoformat() if fi_date else None,
-                "active_from": get_active_from(fi_date) if fi_date else None,
+                "active_from": fi_date,
                 "sesiones_raw": [],
             }
 
@@ -252,7 +250,7 @@ def main():
     for p in personas.values():
         grupo = p["grupo_actual"]
         personal_af = p.get("active_from")
-        g_af = group_af_map.get(grupo.upper())
+        g_af = GROUP_START_DATES.get(grupo.upper())
         effective_af_grupo = max(personal_af, g_af) if personal_af and g_af else (personal_af or g_af)
         for s in p["sesiones_raw"]:
             sd = date.fromisoformat(s["fecha"])
@@ -275,7 +273,7 @@ def main():
     sesiones_por_grupo: dict[str, list[date]] = {
         g: sorted(
             s for s in sesiones_por_grupo_persona[g]
-            if g.upper() not in group_af_map or s >= group_af_map[g.upper()]
+            if g.upper() not in GROUP_START_DATES or s >= GROUP_START_DATES[g.upper()]
         )
         for g in grupos_set
     }
@@ -285,7 +283,7 @@ def main():
     # ---------------------------------------------------------------------------
     personas_list = []
 
-    for persona_key, p in personas.items():
+    for p in personas.values():
         grupo = p["grupo_actual"]
         sesiones_raw = p["sesiones_raw"]
         active_from = p.get("active_from")
@@ -463,28 +461,28 @@ def main():
     # ---------------------------------------------------------------------------
     # Evolucion semanal
     # ---------------------------------------------------------------------------
-    # Evolucion global: bottom-up desde personas, independiente de GROUP_START_DATES.
-    person_active_from = {}
-    for p in personas_list:
-        fi = p.get("fecha_ingreso")
-        person_active_from[p["id"]] = get_active_from(parse_date(fi)) if fi else None
+    # Bottom-up desde personas, independiente de GROUP_START_DATES.
+    person_active_from = {p["id"]: parse_date(p["fecha_ingreso"]) if p["fecha_ingreso"] else None
+                         for p in personas_list}
+    # Asistentes por fecha en un solo recorrido (en vez de re-escanear por cada fecha).
+    asistentes_por_fecha = Counter(
+        h["fecha"]
+        for p in personas_list for h in p["sesiones"] if h["asistio"]
+    )
 
     evolucion = []
     for d in sorted(all_sessions):
-        asistentes = sum(
-            1 for p in personas_list
-            if any(h["fecha"] == d.isoformat() and h["asistio"] for h in p["sesiones"])
-        )
+        iso = d.isoformat()
+        asistentes = asistentes_por_fecha.get(iso, 0)
         total_aplica = sum(
             1 for p in personas_list
             if session_valid_for_group(d, p["grupo_actual"])
-            and (person_active_from[p["id"]] is None
-                 or d >= person_active_from[p["id"]])
+            and (person_active_from[p["id"]] is None or d >= person_active_from[p["id"]])
         )
         evolucion.append({
-            "fecha": d.isoformat(),
+            "fecha": iso,
             "quarter": get_quarter(d),
-            "evento": EVENTS.get(d.isoformat()),
+            "evento": EVENTS.get(iso),
             "asistentes": asistentes,
             "total_aplica": total_aplica,
             "pct": round(asistentes / total_aplica * 100, 1) if total_aplica > 0 else 0,
@@ -537,19 +535,18 @@ def main():
         "evolucion": evolucion,
         "at_risk": at_risk_list,
         "eventos": EVENTS,
-        "excepciones": {k: v for k, v in EXCEPTIONS.items()},
     }
 
     output_path = TMP_DIR / "asistencia_processed.json"
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(output, f, ensure_ascii=False, indent=2)
 
-    print(f"[OK] Procesamiento completo.")
+    print("[OK] Procesamiento completo.")
     print(f"    Personas activas: {total_personas}")
     print(f"    % asistencia global: {pct_global}%")
     print(f"    Status: {dict(status_global)}")
     print(f"    En riesgo: {len(at_risk_list)}")
-    print(f"    Guardado en .tmp/asistencia_processed.json")
+    print("    Guardado en .tmp/asistencia_processed.json")
 
 
 if __name__ == "__main__":

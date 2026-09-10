@@ -215,10 +215,9 @@ mejoras_q2q3, caidas_q2q3, estables_q2q3, total_momentum_q2q3 = momentum_counts(
 
 # Transición más reciente con datos: se usa para insights y titulares.
 if total_momentum_q2q3 > 0:
-    mom_reciente = ("Q2", "Q3", momentum_q2q3, mejoras_q2q3, caidas_q2q3, estables_q2q3, total_momentum_q2q3)
+    mr_qa, mr_qb, mr_mej, mr_cai, mr_est, mr_total = "Q2", "Q3", mejoras_q2q3, caidas_q2q3, estables_q2q3, total_momentum_q2q3
 else:
-    mom_reciente = ("Q1", "Q2", momentum, mejoras, caidas, estables, total_momentum)
-mr_qa, mr_qb, _mr_dict, mr_mej, mr_cai, mr_est, mr_total = mom_reciente
+    mr_qa, mr_qb, mr_mej, mr_cai, mr_est, mr_total = "Q1", "Q2", mejoras, caidas, estables, total_momentum
 
 # ── Insights clave ────────────────────────────────────────────────────────────
 pct_q1_global = pct(
@@ -248,7 +247,6 @@ _delta_qa, _delta_qb = ("Q2", "Q3") if _delta_key == "delta_q2q3" else ("Q1", "Q
 grupos_con_delta = [(n, g) for n, g in grupos_calc.items() if g[_delta_key] is not None]
 top_mejora = max(grupos_con_delta, key=lambda x: x[1][_delta_key]) if grupos_con_delta else None
 top_caida = min(grupos_con_delta, key=lambda x: x[1][_delta_key]) if grupos_con_delta else None
-top_riesgo = max(grupos_calc.items(), key=lambda x: x[1]["at_risk_pct"] or 0) if grupos_calc else None
 grupos_alerta = [(n, g) for n, g in grupos_calc.items() if (g["at_risk_pct"] or 0) > 40]
 
 best_event = max(event_pcts, key=lambda x: x[2]) if event_pcts and avg_normal else None
