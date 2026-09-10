@@ -96,6 +96,18 @@ El pipeline separa 3 cálculos independientes — ver sección 10 de `lineamient
 
 **Riesgo conocido:** `GROUP_START_DATES`/`GROUP_END_DATES`/`EXCEPTIONS` matchean por nombre de grupo (texto libre, sin ID estable). Si el Sheet renombra un grupo, la regla se desactiva **sin error** — pasó con GDC NEW BETTA → GDC OMEGA (2026-07).
 
+### Filtro de entrada: `GRUPO_ACTUAL` en blanco
+
+`process_data.py` descarta **toda fila** cuya columna `GRUPO_ACTUAL` venga vacía (`if not grupo_actual: continue`, ~línea 187). Consecuencia: una persona sin grupo asignado **no existe** para el pipeline — no aparece en KPIs, tablas, dashboard ni sub-agente, sin importar su `ROL_ACTUAL` ni `TIPO_MIEMBRO`. Los **mentores activos sin grupo** (gente entre asignaciones) quedan fuera por esto — no es un bug ni una regresión, siempre fue así. Si se quiere mostrarlos hay que cambiar la regla explícitamente (ej. bucket "sin grupo" que no afecte métricas por grupo, decidir si cuentan en KPIs globales).
+
+### Denominador semanal (`total_aplica` en `evolucion`)
+
+No es "toda la gente con `GRUPO_ACTUAL`". Por cada fecha excluye además: (1) grupos en hold (`GROUP_END_DATES`) desde su fecha de hold, y (2) personas con `FECHA_INGRESO` posterior a esa fecha. Por eso el denominador de una semana puede ser menor que el total de personas activas.
+
+### Fuente: pestaña vs. "maestro"
+
+El pipeline lee la pestaña `03. Asistencia_Reporting` (log largo, una fila por persona×fecha). El usuario tiene además un "maestro" (roster, una fila por persona). Los conteos pueden no cuadrar (ej. 309 en el pipeline vs 312 en el maestro) si la pestaña de reporting va atrasada respecto al maestro.
+
 ---
 
 ## Features del dashboard (estado actual)
@@ -127,4 +139,5 @@ El pipeline separa 3 cálculos independientes — ver sección 10 de `lineamient
 | 2026-07 | `process_data.py` limpiado: sin imports muertos, sin detecciones de columna sin uso (`apellido`, `status_raw`, `grupo` histórica), `grupos_stats` y totales por persona en un solo paso en vez de múltiples list comprehensions redundantes |
 | 2026-07 | Limpieza de repo: `skills/DESIGN_SKILL.md` eliminado y commiteado; `config/credentials.json` y `config/token.json` (OAuth legacy, nunca trackeados en git, sin referencias en código) borrados localmente. `CLAUDE.md` formaliza este archivo (`.claude/MEMORY.md`) como memoria oficial del proyecto |
 | 2026-07 | Reorg de grupos en el Sheet: `GDA USIL [TBD]` → `GDA USIL` (rename simple, sin código hardcodeado que tocar). `GDC EPSILON` y `GDA FAITH` se disolvieron intencionalmente, miembros repartidos en otros grupos. Grupos nuevos `GDC ETA` y `GDA ULIMA` formados con gente antigua de J1 → por decisión del usuario, NO llevan entrada en `GROUP_START_DATES` (a diferencia de LAMBDA/OMEGA que sí la llevan por ser cohortes nuevas). Detalle completo en `workflows/lineamientos_reporte.md` → Historial de cambios |
-| 2026-07-23 | Eventos EJEC (11/07) y Reencuentro EJEC (18/07) agregados a `EVENTS` en `process_data.py`. Nota: esas dos fechas habían mostrado asistencia casi nula en un fetch anterior porque la mayoría de los grupos aún no habían cargado su asistencia al Sheet en ese momento — no era un problema real, solo datos incompletos al momento del fetch (ver conversación: denominador semanal `total_aplica` excluye grupos en hold y personas con `FECHA_INGRESO` futura, lo cual explica por qué el denominador no es simplemente el total de personas con `GRUPO_ACTUAL`) |
+| 2026-07-23 | Eventos EJEC (11/07) y Reencuentro EJEC (18/07) agregados a `EVENTS` en `process_data.py`. Nota: esas dos fechas habían mostrado asistencia casi nula en un fetch anterior porque la mayoría de los grupos aún no habían cargado su asistencia al Sheet en ese momento — no era un problema real, solo datos incompletos al momento del fetch (ver denominador semanal en "Reglas de negocio") |
+| 2026-07-24 | Limpieza en el Sheet: 15 miembros inactivos de `GDC SIGMA` (0% asistencia todo el ciclo, racha -20) dados de baja del grupo — `GRUPO_ACTUAL` y `ROL_ACTUAL` puestos en blanco → salen del pipeline. Además 4 mentores que ya estaban sin grupo (incluido el owner) perdieron su `ROL_ACTUAL` de "Mentor". Ninguno de esos 4 aparecía en el dashboard antes tampoco (ver "Filtro de entrada: `GRUPO_ACTUAL` en blanco"). El conteo total de personas bajó a 309; el maestro del usuario marca 312 (posible desfase entre pestañas) |
