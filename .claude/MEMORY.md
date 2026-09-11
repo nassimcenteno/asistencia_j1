@@ -128,6 +128,7 @@ El pipeline lee la pestaña `03. Asistencia_Reporting` (log largo, una fila por 
 - KPI cards navegables → filtran la tabla correspondiente
 - Matriz de transición de status con **selector de transición** (Q1→Q2 / Q2→Q3 / Q1→Q3), se recalcula client-side desde `status_q*` (el `status_matrix` que emitía `process_data.py` se eliminó por muerto)
 - **Responsive mobile:** tablas → cards, modal → bottom sheet, tabs con iconos
+- **Dark mode con tokens de color propios:** `--accent/--pos/--warn/--neg` (+ variantes `-soft`/`-ink`) en `:root`/`.dark`, en vez de hexadecimales sueltos repetidos por todo el HTML/JS. En dark, `--accent` se aclara a `#818CF8` y `--neg` a `#F87171` — los tonos "500" de light (`#4F46E5`, `#EF4444`) quedan con ~2.3:1 y ~3.75:1 de contraste sobre `--surface` oscuro (invisibles/al límite); `--pos`/`--warn` sí pasan AA en dark sin cambiar. Badges/timeline/matriz/racha usan pares `-soft`/`-ink` (fondo tintado oscuro + texto claro, mismo patrón que ya tenía `.alert-strip`). Los charts de ApexCharts resuelven color con `cssVar('--nombre')` en cada render (no en el objeto `Q_META`/config estático) porque `toggleDark()` ahora **re-renderiza todo** (`refreshAfterThemeChange()`) — si no, los colores quedaban calculados para el tema anterior hasta el próximo cambio de filtro. También se fijó `chart.background:'transparent'` en `baseChartOpts()` (Apex pintaba su propio gris de tema oscuro por defecto, quedaba una caja desencajada dentro de la card).
 
 ---
 
