@@ -102,7 +102,7 @@ El pipeline separa 3 cálculos independientes — ver sección 10 de `lineamient
 
 ### Filtro de entrada: `GRUPO_ACTUAL` en blanco
 
-`process_data.py` descarta **toda fila** cuya columna `GRUPO_ACTUAL` venga vacía (`if not grupo_actual: continue`, ~línea 187). Consecuencia: una persona sin grupo asignado **no existe** para el pipeline — no aparece en KPIs, tablas, dashboard ni sub-agente, sin importar su `ROL_ACTUAL` ni `TIPO_MIEMBRO`. Los **mentores activos sin grupo** (gente entre asignaciones) quedan fuera por esto — no es un bug ni una regresión, siempre fue así. Si se quiere mostrarlos hay que cambiar la regla explícitamente (ej. bucket "sin grupo" que no afecte métricas por grupo, decidir si cuentan en KPIs globales).
+`process_data.py` descarta **toda fila** cuya columna `GRUPO_ACTUAL` venga vacía (`if not grupo_actual: continue`, ~línea 182). Consecuencia: una persona sin grupo asignado **no existe** para el pipeline — no aparece en KPIs, tablas, dashboard ni sub-agente, sin importar su `ROL_ACTUAL` ni `TIPO_MIEMBRO`. Los **mentores activos sin grupo** (gente entre asignaciones) quedan fuera por esto — no es un bug ni una regresión, siempre fue así. Si se quiere mostrarlos hay que cambiar la regla explícitamente (ej. bucket "sin grupo" que no afecte métricas por grupo, decidir si cuentan en KPIs globales).
 
 ### Denominador semanal (`total_aplica` en `evolucion`)
 
@@ -110,7 +110,7 @@ No es "toda la gente con `GRUPO_ACTUAL`". Por cada fecha excluye además: (1) mi
 
 ### Fuente: pestaña vs. "maestro"
 
-El pipeline lee la pestaña `03. Asistencia_Reporting` (log largo, una fila por persona×fecha). El usuario tiene además un "maestro" (roster, una fila por persona). Los conteos pueden no cuadrar (ej. 309 en el pipeline vs 312 en el maestro) si la pestaña de reporting va atrasada respecto al maestro.
+El pipeline lee la pestaña `03. Asistencia_Reporting` (log largo, una fila por persona×fecha). El usuario tiene además un "maestro" (roster, una fila por persona). Los conteos pueden no cuadrar (histórico: 309 pipeline vs 312 maestro) si la pestaña de reporting va atrasada respecto al maestro. Además el número baila entre corridas porque el Sheet cambia en vivo (gente cargando asistencia); a 2026-09-10 el pipeline marca ~294.
 
 ---
 
@@ -133,11 +133,13 @@ El pipeline lee la pestaña `03. Asistencia_Reporting` (log largo, una fila por 
 
 ## Limpieza estructural (2026-09-10)
 
-- **`generate_dashboard.py`: 1255 → ~40 líneas.** La UI se extrajo a `tools/dashboard_template.html` (archivo HTML real, sin `{{`/`}}`). El generador solo inyecta el JSON en el marcador `__ASISTENCIA_DATA__`. Se verificó que el `dashboard.html` de salida quedó **byte-idéntico**.
+- **`generate_dashboard.py`: 1255 → ~50 líneas.** La UI se extrajo a `tools/dashboard_template.html` (archivo HTML real, sin `{{`/`}}`). El generador solo inyecta el JSON en el marcador `__ASISTENCIA_DATA__` (valida que aparezca exactamente 1 vez). Se verificó que el `dashboard.html` de salida quedó **byte-idéntico**. Toda referencia a funciones JS del dashboard en el changelog de abajo (`MATRIX_TRANS`, `renderGroupModal`, `scopedPersonas`, etc.) hoy vive en `dashboard_template.html`, no en `generate_dashboard.py`.
 - **`process_data.py`:** se eliminó `get_active_from()` (era `return ingreso`, identidad muerta) y el alias `group_af_map` (se usa `GROUP_START_DATES` directo); `"excepciones"` salió del JSON de salida (nadie lo consumía, como pasó con `status_matrix`); `evolucion` calcula asistentes por fecha con un `Counter` en un solo recorrido en vez de re-escanear personas por cada fecha; `build_historial` computa `iso` una vez.
 - **`analyze.py`:** se eliminó `top_riesgo` (variable muerta) y el `_mr_dict` del tuple de `mom_reciente`.
 - **`dashboard_template.html`:** se quitó el bloque vacío `if(page==='riesgo'){}` de `navToStatus`.
 - **`requirements.txt`:** se quitó `google-auth-oauthlib` (era para el flujo OAuth que se eliminó en 2026-07; hoy solo se usa Service Account).
+
+---
 
 ## Aprendizajes técnicos
 
@@ -156,5 +158,6 @@ El pipeline lee la pestaña `03. Asistencia_Reporting` (log largo, una fila por 
 | 2026-07-23 | Eventos EJEC (11/07) y Reencuentro EJEC (18/07) agregados a `EVENTS` en `process_data.py`. Nota: esas dos fechas habían mostrado asistencia casi nula en un fetch anterior porque la mayoría de los grupos aún no habían cargado su asistencia al Sheet en ese momento — no era un problema real, solo datos incompletos al momento del fetch (ver denominador semanal en "Reglas de negocio") |
 | 2026-09-10 (2) | Filtro global de período (multi-select Q1/Q2/Q3) en el dashboard — ver "Features". Helpers JS `scopedPersonas()`/`scopedGrupos()`/`scopedGlobalPct()` (con short-circuit `if(isAllQ()) return DATA.*`) + `pAsist/pTotal/pPct/pStatus` y `gAsist/gPosibles/gPct` (todos con 2º arg `qs=QSEL`); `applyGlobalQ()` re-renderiza al togglear. La dona por tipo quedó estática (poblacional). Eventos J-Fest (15/08) y Alaba (05/09). Rediseño del chart de evolución del modal de grupo (igual al de evolución total) y quitado el eje Y del mini-chart Q por persona. `filterGrupoQ` eliminado (redundante). |
 | 2026-09-10 (3) | Filtro de período LOCAL en los pop-ups (`modalQBar()`, `modalQ`, `toggleModalQ`, `modalState`). `openDrilldown`/`openGroupDrilldown` → setup; cuerpo en `renderPersonModal()`/`renderGroupModal()`. Persona: 4ª tarjeta pasa a ser la selección combinada (label `qShort(modalQ)`, ej. "Q2+Q3"), historial y mini-chart filtrados. Grupo: status cards, N sesiones, chart de evolución y bottom-5 recalculados al `modalQ`. Verificado: conteo 294 estable en todos los estados del filtro global; `series.data` del mini-chart correcto para combos; sin errores JS. |
+| 2026-09-10 (4) | **GDC BETTA y GDC BETTA VIAJEROS → regla de asistencia** (`ATTENDANCE_DRIVEN_GROUPS` + `group_had_session()` sobre el mapa `group_attendance`): fecha con 0 asistentes ⇒ no hubo sesión (dinámico, retroactivo). Se eliminó `GROUP_END_DATES`/`session_before_group_end()` (el hold de BETTA VIAJEROS desde 27/6) y las 4 excepciones manuales de BETTA (02/05, 23/05, 30/05, 06/06). **04/07 (LAMBDA + SIGMA) NO se tocó** — sigue como fecha explícita en `EXCEPTIONS`. El marcado de `aplica_denominador`/`aplica_grupo` pasó del loop de filas a un post-proceso (necesita el mapa de asistencia completo). Efecto: BETTA VIAJEROS 16→17 sesiones, BETTA 23→22. Dashboard sin cambios (solo presenta lo que calcula `process_data.py`). |
 | 2026-09-10 | **Q3 agregado.** Q2 dejó de ser "abril en adelante" y ahora es abr–jul; Q3 = ago–TBD. `get_quarter()` en `process_data.py` pasó a 3 ramas y la lógica per-quarter se generalizó a dicts `asist_q`/`total_q`/`pct_q` keyed por `QUARTERS=["Q1","Q2","Q3"]` (persona y grupo). Dashboard: columna Q3% en tabla Personas, 3ª serie en el chart comparativo, opción Q3 en filtro de grupos, 4ª tarjeta + mini-chart en modal de persona, y **selector de transición** en la matriz de status (Q1→Q2 / Q2→Q3 / Q1→Q3, `MATRIX_TRANS` en `generate_dashboard.py`). `sub_insights/analyze.py`: semáforo con Q3% y Δ Q2→Q3, Momentum con dos matrices (helper `momentum_counts`), titulares usan la transición más reciente con datos. Se borró el `status_matrix` del JSON de `process_data.py` — código muerto (nadie lo consumía). Verificado con render headless de las 3 pestañas. |
 | 2026-07-24 | Limpieza en el Sheet: 15 miembros inactivos de `GDC SIGMA` (0% asistencia todo el ciclo, racha -20) dados de baja del grupo — `GRUPO_ACTUAL` y `ROL_ACTUAL` puestos en blanco → salen del pipeline. Además 4 mentores que ya estaban sin grupo (incluido el owner) perdieron su `ROL_ACTUAL` de "Mentor". Ninguno de esos 4 aparecía en el dashboard antes tampoco (ver "Filtro de entrada: `GRUPO_ACTUAL` en blanco"). El conteo total de personas bajó a 309; el maestro del usuario marca 312 (posible desfase entre pestañas) |
