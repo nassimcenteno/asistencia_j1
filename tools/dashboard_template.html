@@ -80,6 +80,7 @@ body { font-family:'Inter',system-ui,sans-serif; background:var(--bg); color:var
 .sort-ind { font-size:10px; margin-left:3px; opacity:.5; }
 .sort-active .sort-ind { opacity:1; }
 .tbl td { padding:11px 16px; font-size:14px; border-bottom:1px solid var(--border); }
+.tbl td.mrow { display:none; } /* tarjeta compacta solo para mobile, ver @media(max-width:640px) */
 .tbl tr:last-child td { border-bottom:none; }
 .tbl tr.clickable { cursor:pointer; transition:background .1s; }
 .tbl tr.clickable:hover { background:var(--hover); }
@@ -144,15 +145,35 @@ body { font-family:'Inter',system-ui,sans-serif; background:var(--bg); color:var
 
 /* ── Responsive ────────── */
 @media(max-width:900px) { .charts-2col { grid-template-columns:1fr !important; } }
+/* Grids de 4 estadísticas (modal-stat Q1..Total, composición de grupo):
+   a 2 columnas en pantallas chicas — a 4 columnas se cortaban dentro del bottom-sheet móvil. */
+@media(max-width:480px) { .grid4 { grid-template-columns:repeat(2,1fr) !important; } }
 @media(max-width:640px) {
   .tab-text { display:none; }
   .kpi-inner { grid-template-columns:repeat(2,1fr) !important; }
   thead { display:none; }
   tbody { display:block; padding:8px; }
-  tr.clickable { display:block; border-radius:10px; border:1px solid var(--border); margin-bottom:10px; overflow:hidden; background:var(--surface); }
-  tr.clickable td { display:flex; justify-content:space-between; align-items:center; padding:9px 12px; border-bottom:1px solid var(--border); font-size:13px; }
-  tr.clickable td:last-child { border-bottom:none; }
-  tr.clickable td[data-label]::before { content:attr(data-label); font-size:10px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.4px; flex-shrink:0; min-width:72px; margin-right:8px; }
+  tr.clickable { display:block; border-radius:14px; border:1px solid var(--border); margin-bottom:10px; overflow:hidden; background:var(--surface); box-shadow:0 1px 2px rgba(0,0,0,.04); }
+  /* En vez de listar cada columna como fila "ETIQUETA: valor" (ilegible, ~7-11 filas por
+     tarjeta), se arma una tarjeta compacta a medida en la celda .mrow — ver
+     renderPersonas/renderRiesgo/renderTableGrupos — y se ocultan las celdas de escritorio. */
+  tr.clickable td[data-label] { display:none; }
+  tr.clickable td.mrow { display:block; padding:14px 15px; }
+  .mrow-top { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; }
+  .mrow-name { font-weight:700; font-size:14.5px; color:var(--text); line-height:1.35; }
+  .mrow-tag { flex-shrink:0; font-size:10.5px; font-weight:700; color:var(--muted); background:var(--surface2); padding:3px 8px; border-radius:999px; margin-top:1px; }
+  .mrow-meta { font-size:12px; color:var(--muted); margin-top:3px; margin-bottom:12px; }
+  .mrow-top + .mrow-bottom { margin-top:12px; }
+  .mrow-bottom { display:flex; align-items:center; gap:14px; }
+  .mrow-bottom .pct-wrap { flex:1; min-width:0; }
+  .mrow-qs { display:flex; gap:10px; font-size:11px; color:var(--muted); white-space:nowrap; flex-shrink:0; }
+  .mrow-qs b { color:var(--text); font-weight:700; }
+  .mrow-sub { font-size:11px; color:var(--muted); white-space:nowrap; flex-shrink:0; }
+  .mrow-stats { display:flex; gap:22px; margin-top:13px; padding-top:12px; border-top:1px solid var(--border); }
+  .mrow-stats b { display:block; font-size:14px; color:var(--text); font-weight:700; line-height:1.2; }
+  .mrow-stats small { font-size:9.5px; color:var(--muted); text-transform:uppercase; letter-spacing:.3px; }
+  .mrow-chips { display:flex; gap:6px; flex-wrap:wrap; margin-top:11px; }
+  .mrow-chips .badge { font-size:10.5px; padding:2px 8px; }
   .modal-overlay { align-items:flex-end; }
   .modal-box { border-radius:16px 16px 0 0; max-height:88vh; width:100%; max-width:100vw; padding:18px; }
   .filters-row { flex-wrap:nowrap; overflow-x:auto; padding-bottom:2px; }
@@ -268,6 +289,13 @@ body { font-family:'Inter',system-ui,sans-serif; background:var(--bg); color:var
   <div class="page" id="page-grupos">
     <div class="card p-5 mb-5">
       <div class="card-title">Comparativa por Quarter por Grupo</div>
+      <div id="q1q2Legend" style="display:flex;gap:14px;margin:-8px 0 14px;font-size:12px;font-weight:600;color:var(--muted)"></div>
+      <!-- Leyenda propia en HTML (arriba) en vez de la de ApexCharts: con ~17 grupos x 3
+           series, apretar las barras al ancho del viewport en mobile las vuelve ilegibles —
+           en vez de forzar scroll horizontal (se sentía "cortado", sin pista de que se podía
+           deslizar), en pantallas chicas el chart pasa a barras horizontales: los grupos se
+           listan hacia abajo (con scroll vertical normal de la página) en vez de apretarse
+           a lo ancho. Ver renderChartQ1Q2. -->
       <div id="chartQ1Q2" style="height:320px"></div>
     </div>
     <div class="card mb-5" style="overflow:hidden">
@@ -864,25 +892,38 @@ function renderChartQ1Q2() {
   // colores resueltos en cada render para reflejar el tema actual (claro/oscuro)
   const Q_COL = { Q1:cssVar('--accent'), Q2:cssVar('--pos'), Q3:cssVar('--warn') };
   const Q_META = Object.fromEntries(Object.entries(Q_META_BASE).map(([k,v]) => [k, { ...v, color:Q_COL[k] }]));
+  // En mobile, 17 grupos x 3 barras apretados al ancho del viewport quedan ilegibles (y forzar
+  // scroll horizontal se sentía "cortado"). En vez de eso, el chart pasa a barras horizontales:
+  // los grupos se listan hacia abajo con el scroll vertical normal de la página.
+  const narrow = window.innerWidth < 640;
+  const chartH = narrow ? Math.max(g.length * 46, 280) : 340;
   const el = document.getElementById('chartQ1Q2');
-  el.style.height = '340px';
+  el.style.height = chartH + 'px';
+  document.getElementById('q1q2Legend').innerHTML = qs.map(q =>
+    `<span style="display:inline-flex;align-items:center;gap:5px"><span style="width:9px;height:9px;border-radius:3px;background:${Q_META[q].color};display:inline-block"></span>${Q_META[q].name}</span>`
+  ).join('');
   if (chartQ1Q2Inst) { chartQ1Q2Inst.destroy(); chartQ1Q2Inst = null; }
   chartQ1Q2Inst = new ApexCharts(el, {
     ...baseChartOpts(),
-    chart: { ...baseChartOpts().chart, type:'bar', height:340 },
+    chart: { ...baseChartOpts().chart, type:'bar', height:chartH },
     series: qs.map(q => ({ name:Q_META[q].name, data:g.map(x=>x[Q_META[q].key]) })),
+    // Las categorías siempre van en xaxis.categories (con o sin barras horizontales). Lo que
+    // sí cambia con horizontal:true es que el formatter "%" de yaxis se pega a los NOMBRES en
+    // vez de a la escala numérica — por eso en mobile yaxis no lleva formatter/min/max propio.
     xaxis: {
       categories: g.map(x=>x.nombre),
-      labels: { rotate:-40, rotateAlways:true, style:{ fontSize:'10px', fontWeight:500 } },
+      labels: narrow ? { style:{ fontSize:'10.5px', fontWeight:500 } } : { rotate:-40, rotateAlways:true, style:{ fontSize:'10px', fontWeight:500 } },
       axisBorder: { show:false },
       axisTicks: { show:false }
     },
-    yaxis: { min:0, max:100, labels:{ formatter:v=>v+'%', style:{ fontSize:'11px' } } },
-    plotOptions: { bar:{ horizontal:false, borderRadius:4, columnWidth:'60%', dataLabels:{ position:'top' } } },
+    yaxis: narrow
+      ? { labels:{ style:{ fontSize:'10.5px', fontWeight:500 } } }
+      : { min:0, max:100, labels:{ formatter:v=>v+'%', style:{ fontSize:'11px' } } },
+    plotOptions: { bar:{ horizontal:narrow, borderRadius:4, columnWidth:'60%', barHeight:'62%', dataLabels:{ position:'top' } } },
     grid: { show:false },
     dataLabels: { enabled: false },
     colors: qs.map(q => Q_META[q].color),
-    legend: { position:'top', fontSize:'12px', markers:{ radius:4 } },
+    legend: { show:false }, // leyenda propia en #q1q2Legend (ver comentario arriba)
     stroke: { show:true, width:2, colors:['transparent'] },
     tooltip: {
       custom: function({ dataPointIndex }) {
@@ -920,6 +961,21 @@ function renderTableGrupos() {
       <td data-label="Activos"><span style="color:var(--accent);font-weight:700">${sd(g).Activo||0}</span></td>
       <td data-label="Inconst."><span style="color:var(--warn);font-weight:700">${sd(g).Inconstante||0}</span></td>
       <td data-label="Inactivos"><span style="color:var(--neg);font-weight:700">${sd(g).Inactivo||0}</span></td>
+      <td class="mrow">
+        <div class="mrow-top"><span class="mrow-name">${g.nombre}</span><span class="mrow-tag">${g.tipo_grupo||'-'}</span></div>
+        <div class="mrow-bottom">${pctBar(g.pct_asistencia)}</div>
+        <div class="mrow-stats">
+          <div><b>${g.num_miembros}</b><small>Personas</small></div>
+          <div><b>${g.sesiones_totales}</b><small>Sesiones</small></div>
+          <div><b>${g.pct_membresia}%</b><small>Membresía</small></div>
+        </div>
+        <div class="mrow-chips">
+          <span class="badge badge-fiel">${sd(g).Fiel||0} fieles</span>
+          <span class="badge badge-activo">${sd(g).Activo||0} activos</span>
+          <span class="badge badge-inconstante">${sd(g).Inconstante||0} inconst.</span>
+          <span class="badge badge-inactivo">${sd(g).Inactivo||0} inactivos</span>
+        </div>
+      </td>
     </tr>`;
   }).join('');
 }
@@ -986,6 +1042,11 @@ function renderRiesgo() {
       <td data-label="% Total">${pctBar(p.pct_total)}</td>
       <td data-label="Status">${badgeHtml(p.status)}</td>
       <td data-label="Ausente">${weeksAgo(p.ultima_asistencia)}</td>
+      <td class="mrow">
+        <div class="mrow-top"><span class="mrow-name">${p.nombre_completo}</span>${badgeHtml(p.status)}</div>
+        <div class="mrow-meta">${p.grupo_actual} · ${p.tipo_grupo||'-'}</div>
+        <div class="mrow-bottom">${pctBar(p.pct_total)}<span class="mrow-sub">${weeksAgo(p.ultima_asistencia)}</span></div>
+      </td>
     </tr>`
   ).join('');
 }
@@ -1015,6 +1076,14 @@ function renderPersonas() {
       <td data-label="Q3%" style="font-weight:600;color:${pctColor(p.pct_q3)}">${p.pct_q3}%</td>
       <td data-label="Total%">${pctBar(p.pct_total)}</td>
       <td data-label="Status">${badgeHtml(p.status)}</td>
+      <td class="mrow">
+        <div class="mrow-top"><span class="mrow-name">${p.nombre_completo}</span>${badgeHtml(p.status)}</div>
+        <div class="mrow-meta">${p.grupo_actual} · ${p.tipo_grupo||'-'}${p.rol?' · '+p.rol:''}</div>
+        <div class="mrow-bottom">
+          ${pctBar(p.pct_total)}
+          <div class="mrow-qs"><span>Q1 <b>${p.pct_q1}%</b></span><span>Q2 <b>${p.pct_q2}%</b></span><span>Q3 <b>${p.pct_q3}%</b></span></div>
+        </div>
+      </td>
     </tr>`
   ).join('');
 }
@@ -1103,7 +1172,7 @@ function renderPersonModal() {
     </div>
     ${modalQBar()}
     ${rachaHtml}
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px">
+    <div class="grid4" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px">
       ${qcard('Q1')}${qcard('Q2')}${qcard('Q3')}${totCard}
     </div>
     <div style="font-size:14px;font-weight:600;margin-bottom:10px">Historial <span style="font-size:12px;font-weight:400;color:var(--muted)">✓ asistió · ✗ faltó · ★ evento</span></div>
@@ -1161,7 +1230,7 @@ function renderGroupModal() {
       <span>📅 ${dates.length} sesiones</span>
     </div>
     ${modalQBar()}
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px">
+    <div class="grid4" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px">
       <div class="modal-stat"><div class="modal-stat-val" style="color:var(--pos)">${sd.Fiel}</div><div class="modal-stat-lbl">Fieles</div></div>
       <div class="modal-stat"><div class="modal-stat-val" style="color:var(--accent)">${sd.Activo}</div><div class="modal-stat-lbl">Activos</div></div>
       <div class="modal-stat"><div class="modal-stat-val" style="color:var(--warn)">${sd.Inconstante}</div><div class="modal-stat-lbl">Inconstantes</div></div>
@@ -1182,20 +1251,27 @@ function renderGroupModal() {
   const gAvg=gEv.length?Math.round(gEv.reduce((s,e)=>s+e.pct,0)/gEv.length):0;
   if(drillChart){drillChart.destroy();drillChart=null;}
   if(!gEv.length){ document.getElementById('modalChart').innerHTML='<div style="font-size:12px;color:var(--muted);padding:20px 0">Sin sesiones en el período seleccionado</div>'; return; }
+  // en mobile el chart se achica al ancho del modal: menos ticks y sin etiqueta por punto
+  // (igual que renderChartEvolucion) para que las fechas no se amontonen.
+  const narrowG = window.innerWidth < 640;
   const ACC=cssVar('--accent'), WRN=cssVar('--warn'), SURF=cssVar('--surface');
   drillChart=new ApexCharts(document.getElementById('modalChart'),{
     ...baseChartOpts(),
     chart:{...baseChartOpts().chart,type:'area',height:220,zoom:{enabled:false}},
     series:[{name:'% Asistencia',data:gEv.map(e=>e.pct)}],
-    xaxis:{categories:gEv.map(e=>fmtDate(e.fecha)),labels:{rotate:-45,style:{fontSize:'11px'}},axisBorder:{show:false}},
+    xaxis:{
+      categories:gEv.map(e=>fmtDate(e.fecha)),
+      tickAmount: narrowG ? Math.min(5, gEv.length-1) : undefined,
+      labels:{rotate:-45,style:{fontSize:'11px'}},axisBorder:{show:false}
+    },
     yaxis:{min:0,max:100,labels:{formatter:v=>v+'%'}},
     grid:{show:false},
     annotations:{yaxis:[{y:gAvg,borderColor:cssVar('--muted'),borderWidth:1,strokeDashArray:4}]},
     markers:{
-      size:5,colors:[ACC],strokeColors:[SURF],strokeWidth:2,hover:{size:7},
-      discrete:gEv.map((e,i)=>e.evento?{seriesIndex:0,dataPointIndex:i,fillColor:WRN,strokeColor:SURF,size:7}:null).filter(Boolean)
+      size: narrowG ? 3 : 5, colors:[ACC],strokeColors:[SURF],strokeWidth:2,hover:{size:7},
+      discrete:gEv.map((e,i)=>e.evento?{seriesIndex:0,dataPointIndex:i,fillColor:WRN,strokeColor:SURF,size:narrowG?4.5:7}:null).filter(Boolean)
     },
-    dataLabels:{enabled:true,formatter:v=>v+'%',style:{fontSize:'11px',fontWeight:700,colors:[ACC]},background:{enabled:false},offsetY:-6},
+    dataLabels:{enabled:!narrowG,formatter:v=>v+'%',style:{fontSize:'11px',fontWeight:700,colors:[ACC]},background:{enabled:false},offsetY:-6},
     fill:{type:'gradient',gradient:{type:'vertical',shadeIntensity:0,inverseColors:false,opacityFrom:0.4,opacityTo:0.02,stops:[0,95,100]}},
     stroke:{curve:'smooth',width:2.5},
     colors:[ACC],
