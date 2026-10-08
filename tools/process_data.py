@@ -22,7 +22,17 @@ EXCEPTIONS = {
     "2026-04-11": {"todos_menos": ["GDC BETTA", "GDC BETTA VIAJEROS", "GDC SIGMA"]},
     # 4/7: GDC LAMBDA y GDC SIGMA no tuvieron sesion (por acuerdo)
     "2026-07-04": {"excluir": ["GDC LAMBDA", "GDC SIGMA"]},
+    # 3/10: solo GDC BETTA VIAJEROS tuvo sesion
+    "2026-10-03": {"todos_menos": ["GDC BETTA VIAJEROS"]},
 }
+
+# Proyecto Betta: estos grupos forman el "Proyecto Betta"; todo el resto es J1.
+# Se usa solo para el toggle del dashboard (no afecta ningun calculo de asistencia).
+PROYECTO_BETTA_GROUPS = {"GDC BETTA", "GDA GAMMA", "GDC BETTA VIAJEROS", "GDC OMEGA"}
+
+
+def get_proyecto(group_name: str) -> str:
+    return "betta" if group_name.strip().upper() in PROYECTO_BETTA_GROUPS else "j1"
 
 # Grupos donde la asistencia manda: en una fecha con 0 asistentes se asume que NO hubo
 # sesion esa semana (se excluye del denominador y del conteo de sesiones del grupo);
@@ -85,9 +95,9 @@ def parse_date(val) -> date | None:
 def get_status(pct: float) -> str:
     if pct == 0:
         return "Inactivo"
-    elif pct <= 50:
+    elif pct <= 40:
         return "Inconstante"
-    elif pct <= 79:
+    elif pct <= 74:
         return "Activo"
     else:
         return "Fiel"
@@ -344,6 +354,7 @@ def main():
             "id": p["id"],
             "nombre_completo": p["nombre_completo"],
             "grupo_actual": grupo,
+            "proyecto": get_proyecto(grupo),
             "rol": p["rol"],
             "tipo_miembro": p["tipo_miembro"],
             "es_miembro": p["es_miembro"],
@@ -414,6 +425,7 @@ def main():
         sesiones_q = {q: sum(1 for d in fechas_grupo if get_quarter(d) == q) for q in QUARTERS}
         grupos_list.append({
             "nombre": g,
+            "proyecto": get_proyecto(g),
             "tipo_grupo": s["tipo_grupo"],
             "num_miembros": s["num_total"],
             "num_miembros_formales": s["num_miembros_formales"],
@@ -479,6 +491,8 @@ def main():
             if session_valid_for_group(d, p["grupo_actual"])
             and (person_active_from[p["id"]] is None or d >= person_active_from[p["id"]])
         )
+        if total_aplica == 0:
+            continue  # fecha que no aplica a nadie (ej. sesion aun sin asistencia cargada): no es un punto de 0%
         evolucion.append({
             "fecha": iso,
             "quarter": get_quarter(d),

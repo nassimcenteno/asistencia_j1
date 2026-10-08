@@ -68,6 +68,8 @@ Stack: **Tailwind CSS CDN + ApexCharts + Inter font + dark mode** (CSS custom pr
 
 **Filtro global de período:** chips Q1/Q2/Q3 combinables (mín. 1) a la derecha de las pestañas. Recalcula KPIs, ranking, evolución, tablas de grupos y personas, y export CSV al subconjunto de quarters elegido. Con los 3 Q activos no recalcula nada (idéntico a sin filtro). No afecta: dona por tipo (poblacional), lista de "En Riesgo" (global; solo su % por fila obedece), matriz de status (selector propio), "Participantes"/"% membresía" (roster completo).
 
+**Toggle de proyecto (J1 / Betta):** junto al filtro de período, chips combinables (mín. 1, con contador de personas). Betta = BETTA, GAMMA, BETTA VIAJEROS, OMEGA; J1 = el resto. Con ambos activos no cambia nada; con uno solo se recalculan KPIs, dona, evolución, riesgo, rankings y tablas, y se resetean los selects de grupo. Ver `lineamientos_reporte.md` §14.
+
 **Filtro de período local en los pop-ups:** el modal de persona y el de grupo tienen su propia fila de chips Q, independiente del global (arranca copiándolo). Solo afecta al contenido de ese pop-up: tarjeta de selección + historial + mini-chart en persona; status cards + N sesiones + evolución + bottom-5 en grupo.
 
 **4 tabs:** Resumen / Grupos / Personas / Riesgo

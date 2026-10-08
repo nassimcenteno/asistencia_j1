@@ -60,6 +60,14 @@ body { font-family:'Inter',system-ui,sans-serif; background:var(--bg); color:var
 .qchip { padding:6px 14px; border-radius:8px; font-size:13px; font-weight:600; color:var(--muted); border:none; background:transparent; cursor:pointer; transition:all .15s; }
 .qchip.active { background:var(--surface); color:var(--accent); box-shadow:0 1px 4px rgba(0,0,0,.12); }
 .qchip:hover:not(.active) { color:var(--text); }
+/* Selector de proyecto (J1 / Betta): mismos chips que el período, con punto de color y contador */
+.filters-right { display:flex; align-items:center; gap:18px; flex-wrap:wrap; }
+.proj-chip { display:inline-flex; align-items:center; gap:7px; }
+.proj-dot { width:8px; height:8px; border-radius:50%; opacity:.4; transition:opacity .15s; }
+.proj-chip.active .proj-dot { opacity:1; }
+.proj-n { font-size:11px; font-weight:600; color:var(--muted); background:var(--surface2); padding:1px 7px; border-radius:999px; }
+.proj-chip.active .proj-n { background:var(--accent-soft); color:var(--accent-ink); }
+@media(max-width:640px) { .filters-right { gap:10px 14px; width:100%; } }
 
 /* ── Card ────────────── */
 .card { background:var(--surface); border:1px solid var(--border); border-radius:16px; box-shadow:0 1px 3px rgba(0,0,0,.06); }
@@ -227,12 +235,21 @@ body { font-family:'Inter',system-ui,sans-serif; background:var(--bg); color:var
       <span class="tab-text">Riesgo</span>
     </button>
   </div>
-    <div class="qbar" id="qbarGlobal">
-      <span class="qbar-lbl">Período</span>
-      <div class="qbar-group">
-        <button class="qchip active" data-q="Q1" onclick="toggleQ('Q1')">Q1</button>
-        <button class="qchip active" data-q="Q2" onclick="toggleQ('Q2')">Q2</button>
-        <button class="qchip active" data-q="Q3" onclick="toggleQ('Q3')">Q3</button>
+    <div class="filters-right">
+      <div class="qbar" id="projBar">
+        <span class="qbar-lbl">Proyecto</span>
+        <div class="qbar-group">
+          <button class="qchip proj-chip active" data-proj="j1" onclick="toggleProj('j1')"><span class="proj-dot" style="background:var(--accent)"></span>J1<span class="proj-n" id="projN-j1"></span></button>
+          <button class="qchip proj-chip active" data-proj="betta" onclick="toggleProj('betta')"><span class="proj-dot" style="background:var(--warn)"></span>Betta<span class="proj-n" id="projN-betta"></span></button>
+        </div>
+      </div>
+      <div class="qbar" id="qbarGlobal">
+        <span class="qbar-lbl">Período</span>
+        <div class="qbar-group">
+          <button class="qchip active" data-q="Q1" onclick="toggleQ('Q1')">Q1</button>
+          <button class="qchip active" data-q="Q2" onclick="toggleQ('Q2')">Q2</button>
+          <button class="qchip active" data-q="Q3" onclick="toggleQ('Q3')">Q3</button>
+        </div>
       </div>
     </div>
   </div>
@@ -450,7 +467,52 @@ body { font-family:'Inter',system-ui,sans-serif; background:var(--bg); color:var
 
 <script>
 // El marcador de abajo lo reemplaza generate_dashboard.py con el JSON de .tmp/asistencia_processed.json
-const DATA = __ASISTENCIA_DATA__;
+const DATA_FULL = __ASISTENCIA_DATA__;
+// DATA = vista activa. Con ambos proyectos seleccionados (default) ES DATA_FULL, sin tocar.
+let DATA = DATA_FULL;
+
+// ── FILTRO DE PROYECTO (J1 / Betta, combinables) ──────────────────────────
+// Cada persona y grupo trae `proyecto` ('betta' | 'j1') desde process_data.py.
+// Con un solo proyecto se recalculan en cliente los agregados globales (KPIs, tipos,
+// evolución, riesgo) a partir de las personas filtradas; los campos por persona/grupo no cambian.
+const PALL = ['j1','betta'];
+const PNAME = { j1:'J1', betta:'Proyecto Betta' };
+let PSEL = new Set(PALL);
+const isAllProj = () => PSEL.size === PALL.length;
+const projLabel = () => PALL.filter(x => PSEL.has(x)).map(x => PNAME[x]).join(' + ');
+
+function buildView() {
+  if (isAllProj()) return DATA_FULL;
+  const F = DATA_FULL;
+  const personas = F.personas.filter(p => PSEL.has(p.proyecto));
+  const grupos = F.grupos.filter(g => PSEL.has(g.proyecto));
+  const gset = new Set(grupos.map(g => g.nombre));
+  const asist = personas.reduce((s,p) => s + p.total_asistencias, 0);
+  const posib = personas.reduce((s,p) => s + p.total_sesiones, 0);
+  const status_dist = {};
+  personas.forEach(p => { status_dist[p.status] = (status_dist[p.status]||0) + 1; });
+  const at_risk = F.at_risk.filter(r => gset.has(r.grupo_actual));
+  // tipos (GBU/GDA/GDC): mismo orden que el JSON completo, solo los que quedan con gente
+  const tipos = F.tipos.map(t => {
+    const ps = personas.filter(p => p.tipo_grupo === t.tipo);
+    const a = ps.reduce((s,p) => s + p.total_asistencias, 0), n = ps.reduce((s,p) => s + p.total_sesiones, 0);
+    return { ...t, personas: ps.length, pct_asistencia: n > 0 ? Math.round(a/n*1000)/10 : 0 };
+  }).filter(t => t.personas > 0);
+  // evolución bottom-up: total_aplica = personas cuyo historial incluye esa fecha
+  const asistPorFecha = {}, aplicaPorFecha = {};
+  personas.forEach(p => p.sesiones.forEach(h => {
+    aplicaPorFecha[h.fecha] = (aplicaPorFecha[h.fecha]||0) + 1;
+    if (h.asistio) asistPorFecha[h.fecha] = (asistPorFecha[h.fecha]||0) + 1;
+  }));
+  const evolucion = F.evolucion.filter(e => aplicaPorFecha[e.fecha] > 0).map(e => {
+    const a = asistPorFecha[e.fecha]||0, t = aplicaPorFecha[e.fecha];
+    return { ...e, asistentes: a, total_aplica: t, pct: Math.round(a/t*1000)/10 };
+  });
+  return { ...F,
+    kpis: { total_personas: personas.length, pct_asistencia_global: posib > 0 ? Math.round(asist/posib*1000)/10 : 0,
+            status_dist, total_at_risk: at_risk.length },
+    personas, grupos, tipos, evolucion, at_risk };
+}
 
 // ── FILTRO DE PERÍODO (Q1/Q2/Q3 combinables) ──────────────────────────────
 const QALL = ['Q1','Q2','Q3'];
@@ -464,7 +526,7 @@ const qLabel = (qs=QSEL) => isAll(qs) ? 'todo el ciclo' : qKeys(qs).join(' + ');
 const qShort = (qs=QSEL) => isAll(qs) ? 'Total' : qKeys(qs).join('+');
 
 function statusFromPct(p) {
-  return p === 0 ? 'Inactivo' : p <= 50 ? 'Inconstante' : p <= 79 ? 'Activo' : 'Fiel';
+  return p === 0 ? 'Inactivo' : p <= 40 ? 'Inconstante' : p <= 74 ? 'Activo' : 'Fiel';
 }
 // Persona: suma de los quarters de `qs`.
 const pAsist  = (p, qs=QSEL) => qLow(qs).reduce((s,q) => s + (p['asist_'+q] || 0), 0);
@@ -504,6 +566,32 @@ function toggleQ(q) {
   else QSEL.add(q);
   document.querySelectorAll('#qbarGlobal .qchip').forEach(c => c.classList.toggle('active', QSEL.has(c.dataset.q)));
   applyGlobalQ();
+}
+function toggleProj(p) {
+  if (PSEL.has(p)) { if (PSEL.size === 1) return; PSEL.delete(p); }
+  else PSEL.add(p);
+  document.querySelectorAll('#projBar .proj-chip').forEach(c => c.classList.toggle('active', PSEL.has(c.dataset.proj)));
+  applyProject();
+}
+function applyProject() {
+  DATA = buildView();
+  closeModalDirect();
+  // los selects de grupo dependen de la vista: se reconstruyen y se limpian sus valores
+  const gSel = document.getElementById('filterPGrupo');
+  gSel.innerHTML = '<option value="">Todos los grupos</option>';
+  [...new Set(DATA.personas.map(p => p.grupo_actual))].sort().forEach(g => {
+    const o = document.createElement('option'); o.value = g; o.text = g; gSel.appendChild(o);
+  });
+  updateMatrixGrupos();
+  renderKPIs();
+  renderRankingGrupos();
+  renderChartTipos();
+  renderChartEvolucion();
+  renderChartQ1Q2();
+  renderTableGrupos();
+  renderMatrix();
+  renderRiesgo();
+  renderPersonas();
 }
 function applyGlobalQ() {
   renderKPIs();
@@ -576,7 +664,7 @@ function toggleDark() {
 
 // ── UTILS ─────────────────────────────────────────────────────────────────
 function cssVar(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
-function pctColor(p) { return p>=80?cssVar('--pos'):p>=51?cssVar('--accent'):p>0?cssVar('--warn'):cssVar('--neg'); }
+function pctColor(p) { return p>74?cssVar('--pos'):p>40?cssVar('--accent'):p>0?cssVar('--warn'):cssVar('--neg'); }
 function badgeHtml(s) {
   const m={'Fiel':'fiel','Activo':'activo','Inconstante':'inconstante','Inactivo':'inactivo'};
   return `<span class="badge badge-${m[s]||'inactivo'}">${s}</span>`;
@@ -676,14 +764,14 @@ function renderKPIs() {
     const arrow=d>0?'↑':d<0?'↓':'→';
     deltaHtml=`<div style="font-size:12px;font-weight:700;color:${col};margin-top:4px">${arrow} ${d>0?'+':''}${d}pp vs sem. ant.</div>`;
   }
-  const partSub=isAllQ()?'con grupo activo':`período: ${qKeys().join('+')}`;
+  const partSub=(isAllQ()?'con grupo activo':`período: ${qKeys().join('+')}`)+(isAllProj()?'':` · ${projLabel()}`);
   const ACC=cssVar('--accent'), POS=cssVar('--pos'), WRN=cssVar('--warn'), NEG=cssVar('--neg');
   const cards=[
     {l:'Participantes',  v:k.total_personas,              sub:partSub,              col:ACC, icon:'M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 7a4 4 0 1 0 8 0 4 4 0 0 0-8 0M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75', page:null},
     {l:'% Asistencia',   v:pctGlobal+'%',                 sub:isAllQ()?'promedio general':qLabel(), col:'#0EA5E9', icon:'M23 6L13.5 15.5 8.5 10.5 1 18M17 6h6v6', page:null, extra:deltaHtml},
-    {l:'Fieles',         v:sd.Fiel||0,                    sub:'80%+',               col:POS, icon:'M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z', page:'personas',status:'Fiel'},
-    {l:'Activos',        v:sd.Activo||0,                  sub:'51–79%',             col:ACC, icon:'M22 12h-4l-3 9L9 3l-3 9H2', page:'personas',status:'Activo'},
-    {l:'Inconstantes',   v:sd.Inconstante||0,             sub:'1–50%',              col:WRN, icon:'M13 2L3 14h9l-1 8 10-12h-9l1-8z', page:'personas',status:'Inconstante'},
+    {l:'Fieles',         v:sd.Fiel||0,                    sub:'>74%',               col:POS, icon:'M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z', page:'personas',status:'Fiel'},
+    {l:'Activos',        v:sd.Activo||0,                  sub:'41–74%',             col:ACC, icon:'M22 12h-4l-3 9L9 3l-3 9H2', page:'personas',status:'Activo'},
+    {l:'Inconstantes',   v:sd.Inconstante||0,             sub:'1–40%',              col:WRN, icon:'M13 2L3 14h9l-1 8 10-12h-9l1-8z', page:'personas',status:'Inconstante'},
     {l:'Inactivos',      v:sd.Inactivo||0,                sub:'0%',                 col:NEG, icon:'M16 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM1 21v-2a7 7 0 0 1 7-7h4M17 17l5 5M22 17l-5 5', page:'personas',status:'Inactivo'},
     {l:'En Riesgo',      v:k.total_at_risk||0,            sub:'0 asist. / 4 sem.',  col:NEG, icon:'M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0zM12 9v4M12 17h.01', page:'riesgo'},
   ];
@@ -1219,8 +1307,12 @@ function renderGroupModal() {
     const tot=members.filter(m=>m.sesiones_grupo.some(s=>s.fecha===fecha)).length;
     const att=members.filter(m=>m.sesiones_grupo.some(s=>s.fecha===fecha&&s.asistio)).length;
     const evento=(DATA.eventos||{})[fecha]||null;
-    return{fecha,tot,att,pct:tot>0?Math.round(att/tot*100):0,evento};
+    return{fecha,tot,att,pct:tot>0?Math.round(att/tot*1000)/10:0,evento};
   });
+  // Promedio ponderado (Σasistentes / Σposibles): coincide con el % del grupo en la tabla de Grupos
+  // para el mismo período; el promedio simple de los % semanales sesgaba hacia semanas con pocos miembros.
+  const gTotPos=gEv.reduce((s,e)=>s+e.tot,0);
+  const gAvg=gTotPos?Math.round(gEv.reduce((s,e)=>s+e.att,0)/gTotPos*1000)/10:0;
   const bottom5=[...members].sort((a,b)=>pPct(a,modalQ)-pPct(b,modalQ)).slice(0,5);
   document.getElementById('modalContent').innerHTML=`
     <div style="font-size:22px;font-weight:800;padding-right:40px;margin-bottom:4px">${groupName}</div>
@@ -1236,7 +1328,7 @@ function renderGroupModal() {
       <div class="modal-stat"><div class="modal-stat-val" style="color:var(--warn)">${sd.Inconstante}</div><div class="modal-stat-lbl">Inconstantes</div></div>
       <div class="modal-stat"><div class="modal-stat-val" style="color:var(--neg)">${sd.Inactivo}</div><div class="modal-stat-lbl">Inactivos</div></div>
     </div>
-    <div style="font-size:14px;font-weight:600;margin-bottom:10px">Evolución del grupo <span style="font-size:12px;font-weight:400;color:var(--muted)">· puntos naranjos = eventos</span></div>
+    <div style="font-size:14px;font-weight:600;margin-bottom:10px">Evolución del grupo <span style="font-size:12px;font-weight:400;color:var(--muted)">· puntos naranjos = eventos · línea punteada = promedio del período (${gAvg}%)</span></div>
     <div id="modalChart" style="height:220px;margin-bottom:20px"></div>
     <div style="font-size:14px;font-weight:600;margin-bottom:10px">Menor asistencia <span style="font-size:12px;font-weight:400;color:var(--muted)">(click para ver detalle)</span></div>
     <div style="overflow-x:auto"><table class="mini-table"><thead><tr><th>Nombre</th><th>% ${qShort(modalQ)}</th><th>Status</th></tr></thead><tbody id="groupMembersTbody"></tbody></table></div>
@@ -1248,7 +1340,6 @@ function renderGroupModal() {
       <td>${badgeHtml(pStatus(p,modalQ))}</td>
     </tr>`
   ).join('');
-  const gAvg=gEv.length?Math.round(gEv.reduce((s,e)=>s+e.pct,0)/gEv.length):0;
   if(drillChart){drillChart.destroy();drillChart=null;}
   if(!gEv.length){ document.getElementById('modalChart').innerHTML='<div style="font-size:12px;color:var(--muted);padding:20px 0">Sin sesiones en el período seleccionado</div>'; return; }
   // en mobile el chart se achica al ancho del modal: menos ticks y sin etiqueta por punto
@@ -1265,13 +1356,13 @@ function renderGroupModal() {
       labels:{rotate:-45,style:{fontSize:'11px'}},axisBorder:{show:false}
     },
     yaxis:{min:0,max:100,labels:{formatter:v=>v+'%'}},
-    grid:{show:false},
+    grid:{show:false,padding:{top:22,left:8,right:14}},
     annotations:{yaxis:[{y:gAvg,borderColor:cssVar('--muted'),borderWidth:1,strokeDashArray:4}]},
     markers:{
       size: narrowG ? 3 : 5, colors:[ACC],strokeColors:[SURF],strokeWidth:2,hover:{size:7},
       discrete:gEv.map((e,i)=>e.evento?{seriesIndex:0,dataPointIndex:i,fillColor:WRN,strokeColor:SURF,size:narrowG?4.5:7}:null).filter(Boolean)
     },
-    dataLabels:{enabled:!narrowG,formatter:v=>v+'%',style:{fontSize:'11px',fontWeight:700,colors:[ACC]},background:{enabled:false},offsetY:-6},
+    dataLabels:{enabled:!narrowG,formatter:v=>Math.round(v)+'%',style:{fontSize:'11px',fontWeight:700,colors:[ACC]},background:{enabled:false},offsetY:-6},
     fill:{type:'gradient',gradient:{type:'vertical',shadeIntensity:0,inverseColors:false,opacityFrom:0.4,opacityTo:0.02,stops:[0,95,100]}},
     stroke:{curve:'smooth',width:2.5},
     colors:[ACC],
@@ -1284,6 +1375,7 @@ function renderGroupModal() {
         ${evLabel}
         <div style="font-size:20px;font-weight:800;color:${ACC};margin-top:4px">${e.pct}%</div>
         <div style="font-size:11px;color:var(--muted)">${e.att} / ${e.tot} personas</div>
+        ${e.tot<members.length?`<div style="font-size:10px;color:var(--muted);margin-top:2px">${members.length-e.tot} miembro(s) aún sin ingreso esa fecha</div>`:''}
       </div>`;
     }},
   });
@@ -1303,6 +1395,11 @@ document.addEventListener('DOMContentLoaded',()=>{
   const d=DATA.generated_at?new Date(DATA.generated_at):new Date();
   document.getElementById('lastUpdated').textContent=
     'Actualizado: '+d.toLocaleString('es-PE',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
+
+  PALL.forEach(x => {
+    const n = DATA_FULL.personas.filter(p => p.proyecto === x).length;
+    document.getElementById('projN-'+x).textContent = n;
+  });
 
   renderKPIs();
   renderRankingGrupos();

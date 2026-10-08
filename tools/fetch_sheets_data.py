@@ -87,6 +87,28 @@ def main():
         print("[AVISO]   La hoja está vacía o no tiene filas con datos.")
         sys.exit(1)
 
+    # --- Red de seguridad: asistencias en 02. Imp_Asistencia que 03 no recogio ---
+    # 03 cruza por KEY_FECHA_DNI (columna con formula en 02). Si esa formula no se arrastro
+    # a una fila nueva, la key queda vacia y 03 deja esa asistencia en 0. Se cruza por
+    # (fecha, DNI) -- equivalente a la key -- y se parchea ASISTENCIA aqui.
+    try:
+        src = spreadsheet.worksheet("02. Imp_Asistencia").get_all_values()
+        hdr = [h.strip() for h in src[0]]
+        i_f, i_d = hdr.index("FECHA_REUNION_STD"), hdr.index("DNI")
+        presentes = {(r[i_f].strip(), r[i_d].strip()) for r in src[1:] if len(r) > max(i_f, i_d) and r[i_d].strip()}
+        parcheadas = 0
+        for rec in records:
+            if str(rec.get("ASISTENCIA", "")).strip() in ("1", "SI", "SÍ", "TRUE"):
+                continue
+            if (str(rec.get("FECHA_REUNION_STD", "")).strip(), str(rec.get("DNI", "")).strip()) in presentes:
+                rec["ASISTENCIA"] = 1
+                parcheadas += 1
+        if parcheadas:
+            print(f"[AVISO]   {parcheadas} asistencias estaban en '02. Imp_Asistencia' pero 03 las tenia en 0 "
+                  f"(KEY_FECHA_DNI vacia en 02?). Parcheadas al vuelo.")
+    except Exception as e:
+        print(f"[AVISO]   No se pudo cruzar con '02. Imp_Asistencia': {e}")
+
     # --- Guardar raw ---
     TMP_DIR.mkdir(exist_ok=True)
     output_path = TMP_DIR / "asistencia_raw.json"
