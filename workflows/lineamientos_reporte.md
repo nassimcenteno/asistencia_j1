@@ -25,12 +25,13 @@ Fuente en código: `get_status()` en `process_data.py` y `statusFromPct()`/`pctC
 |---|---|---|
 | **Q1** | 01/01 – 31/03 | Enero – Marzo (inclusive) |
 | **Q2** | 01/04 – 31/07 | Abril – Julio (inclusive) |
-| **Q3** | 01/08 – TBD | Agosto en adelante (sin fecha de cierre definida aún) |
+| **Q3** | 01/08 – 16/10 | Agosto hasta el 16 de octubre (inclusive) |
+| **Q4** | 17/10 – TBD | Desde el 17/10/2026 (sin fecha de cierre definida aún) |
 
-Regla en código: `get_quarter()` en `process_data.py` — `month <= 3` → Q1, `month <= 7` → Q2, resto → Q3.
-Los tres quarters se calculan y muestran en paralelo en todo el pipeline: campos `pct_q1/q2/q3`,
-`asist_q1/q2/q3`, `total_q1/q2/q3`, `status_q1/q2/q3` por persona y `pct_q1/q2/q3` por grupo.
-Cuando se defina el cierre de Q3 (o arranque Q4), actualizar `get_quarter()` y esta tabla.
+Regla en código: `get_quarter()` en `process_data.py` — fecha ≥ `Q4_START` (17/10/2026) → Q4; si no, `month <= 3` → Q1, `month <= 7` → Q2, resto → Q3.
+Los cuatro quarters se calculan y muestran en paralelo en todo el pipeline: campos `pct_q1..q4`,
+`asist_q1..q4`, `total_q1..q4`, `status_q1..q4` por persona y `pct/asist/posibles/sesiones_q1..q4` por grupo.
+Cuando se defina el cierre de Q4 (o arranque Q5), actualizar `get_quarter()` y esta tabla.
 
 ---
 
@@ -196,7 +197,13 @@ Al agregar personas nuevas con FECHA_INGRESO: no requiere cambio de código. El 
 
 ## 14. Proyectos (J1 / Proyecto Betta) — solo presentación
 
-El dashboard tiene un toggle **Proyecto** (J1 / Betta, combinables, mínimo 1; default ambos). **Proyecto Betta** = `GDC BETTA`, `GDA GAMMA`, `GDC BETTA VIAJEROS`, `GDC OMEGA` (`PROYECTO_BETTA_GROUPS` en `process_data.py`); **J1** = todos los demás grupos. `process_data.py` solo etiqueta `proyecto` ('betta'|'j1') en cada persona y grupo; **no cambia ningún cálculo de asistencia**. Con un solo proyecto, el dashboard recalcula en cliente (`buildView()`) KPIs, tipos, evolución semanal y riesgo desde las personas filtradas; con ambos usa el JSON tal cual. La clave debe coincidir con `GRUPO_ACTUAL` (si renombran un grupo, pasa a J1 sin error — misma advertencia que §11).
+El dashboard tiene un toggle **Proyecto** (J1 / Betta, combinables, mínimo 1; default ambos). **Proyecto Betta** = `GDC BETTA`, `GDA GAMMA`, `GDC BETTA VIAJEROS`, `GDC OMEGA` (`PROYECTO_BETTA_GROUPS` en `process_data.py`); **J1** = todos los demás grupos. `process_data.py` solo etiqueta `proyecto` ('betta'|'j1') en cada persona y grupo; **no cambia ningún cálculo de asistencia**. **Con / Sin viajeros:** si Betta es el único proyecto seleccionado aparece un segundo toggle (`VSEL`); "Sin viajeros" excluye `GDC BETTA VIAJEROS` de TODO (KPIs, tablas, rankings, evolución, riesgo, modales, export CSV). Con J1 seleccionado el toggle se oculta y BETTA VIAJEROS siempre cuenta. Con un solo proyecto, el dashboard recalcula en cliente (`buildView()`) KPIs, tipos, evolución semanal y riesgo desde las personas filtradas; con ambos usa el JSON tal cual. La clave debe coincidir con `GRUPO_ACTUAL` (si renombran un grupo, pasa a J1 sin error — misma advertencia que §11).
+
+---
+
+## 15. Semanas parciales en la evolución semanal (solo presentación)
+
+En el gráfico de evolución semanal del Resumen, una semana con **25 participantes o menos** en el denominador (`total_aplica ≤ 25`, p. ej. el 03/10 donde solo se reunió BETTA VIAJEROS) es una **semana parcial**: se sigue dibujando, pero con punto **gris**, y **no cuenta** en las tarjetas Mejor semana, Peor semana, Promedio semanal ni Semanas (que informa cuántas parciales se excluyeron). El % global, el delta vs. semana anterior y el resto de métricas no cambian. Umbral: `MIN_PARTICIPANTES_SEMANA` en `dashboard_template.html`. Se evalúa sobre la vista activa, por lo que con filtros de proyecto/viajeros puede haber más semanas parciales.
 
 ---
 
@@ -233,3 +240,5 @@ El dashboard tiene un toggle **Proyecto** (J1 / Betta, combinables, mínimo 1; d
 | 2026-10-08 (2) | **Parche en `fetch_sheets_data.py`:** si `02. Imp_Asistencia` tiene una asistencia (fecha+DNI) que `03. Asistencia_Reporting` dejó en 0 (pasa cuando `KEY_FECHA_DNI` de 02 quedó vacía por fórmula sin arrastrar) se corrige al vuelo y se avisa por consola. Detectó 16 filas: 3 de BETTA VIAJEROS del 03/10 y 13 del 26/09 (LAMBDA 7, ETA 6). **Modal de grupo:** promedio de evolución ponderado (Σasistentes/Σposibles), % semanales con 1 decimal, aviso en tooltip de miembros sin ingreso, margen superior en el chart. |
 | 2026-10-08 | **Umbrales de status alineados al código:** Fiel >74%, Activo 41–74%, Inconstante 1–40% (la doc decía 80/51/50 y `pctColor` del dashboard usaba 80/51). **Excepción 03/10:** solo GDC BETTA VIAJEROS tuvo sesión. **Toggle de proyecto J1 / Betta** (§14). `evolucion` ya no emite fechas con `total_aplica = 0`. |
 | 2026-11-06 | **GDC RHO y GDC MERCY** agregados a `GROUP_START_DATES` (17/10/2026, solo nivel grupo, igual que LAMBDA/OMEGA; ambos quedan en proyecto J1). **Excepción 31/10:** GDA GAMMA no tuvo sesión. **Eventos:** 17/10 "El Viaje" y 24/10 "Reencuentro - El Viaje". `process_data.py` avisa (solo conteo) de personas con asistencias previas a su `FECHA_INGRESO`. |
+| 2026-11-06 (2) | **Q4 desde el 17/10/2026** (Q3 pasa a 01/08–16/10): `QUARTERS`/`get_quarter()` con 4 ramas y campos `*_q4` en persona y grupo. Dashboard: chip Q4, columna Q4% en Personas, 4ª serie en la comparativa por grupo, 5 tarjetas en el modal de persona y transiciones de la matriz Q1→Q2 / Q2→Q3 / Q3→Q4 / Q1→Q4. **Toggle Con / Sin viajeros** (solo visible cuando Betta es el único proyecto): excluye a GDC BETTA VIAJEROS de todo el dashboard (§14). Rediseño de la barra de filtros (control segmentado con puntos de color, contadores y pastilla deslizante). `sub_insights/analyze.py` sigue en Q1–Q3 (no incorpora Q4 todavía). |
+| 2026-11-06 (3) | **Semanas parciales (≤25 participantes)** excluidas de las tarjetas de resumen de la evolución semanal y con punto gris (§15). Selector de transición de la matriz de status con las 6 combinaciones de quarters. Se revirtió el rediseño de header/filtros a la versión anterior (pestañas arriba, filtros debajo). |

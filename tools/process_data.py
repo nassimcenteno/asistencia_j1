@@ -71,14 +71,19 @@ GROUP_START_DATES: dict[str, date] = {
     "GDC MERCY": date(2026, 10, 17),
 }
 
-QUARTERS = ["Q1", "Q2", "Q3"]
+QUARTERS = ["Q1", "Q2", "Q3", "Q4"]
+
+# Q4 arranca el 17/10/2026 (primera sesion de Q4); Q3 queda como 01/08 - 16/10.
+Q4_START = date(2026, 10, 17)
 
 # Las sesiones de una persona / grupo cuentan desde su fecha de inicio (inclusive).
 # FECHA_INGRESO y GROUP_START_DATES se usan tal cual, sin desplazamiento.
 
 
 def get_quarter(d: date) -> str:
-    """Q1: ene-mar | Q2: abr-jul | Q3: ago en adelante."""
+    """Q1: ene-mar | Q2: abr-jul | Q3: 01/08 - 16/10 | Q4: desde el 17/10/2026."""
+    if d >= Q4_START:
+        return "Q4"
     if d.month <= 3:
         return "Q1"
     if d.month <= 7:
@@ -386,16 +391,20 @@ def main():
             "pct_q1": pct_q["Q1"],
             "pct_q2": pct_q["Q2"],
             "pct_q3": pct_q["Q3"],
+            "pct_q4": pct_q["Q4"],
             "asist_q1": asist_q["Q1"],
             "total_q1": total_q["Q1"],
             "asist_q2": asist_q["Q2"],
             "total_q2": total_q["Q2"],
             "asist_q3": asist_q["Q3"],
             "total_q3": total_q["Q3"],
+            "asist_q4": asist_q["Q4"],
+            "total_q4": total_q["Q4"],
             "status": status,
             "status_q1": status_q["Q1"],
             "status_q2": status_q["Q2"],
             "status_q3": status_q["Q3"],
+            "status_q4": status_q["Q4"],
             "at_risk": at_risk,
             "ultima_asistencia": ultima_asistencia,
             "racha_actual": racha_actual,
@@ -452,16 +461,20 @@ def main():
             "pct_q1": pct_q["Q1"],
             "pct_q2": pct_q["Q2"],
             "pct_q3": pct_q["Q3"],
+            "pct_q4": pct_q["Q4"],
             # Conteos por quarter — para que el dashboard combine quarters (filtro global) con sumas simples.
             "asist_q1": s["asist_q"]["Q1"],
             "asist_q2": s["asist_q"]["Q2"],
             "asist_q3": s["asist_q"]["Q3"],
+            "asist_q4": s["asist_q"]["Q4"],
             "posibles_q1": s["posibles_q"]["Q1"],
             "posibles_q2": s["posibles_q"]["Q2"],
             "posibles_q3": s["posibles_q"]["Q3"],
+            "posibles_q4": s["posibles_q"]["Q4"],
             "sesiones_q1": sesiones_q["Q1"],
             "sesiones_q2": sesiones_q["Q2"],
             "sesiones_q3": sesiones_q["Q3"],
+            "sesiones_q4": sesiones_q["Q4"],
             "status_dist": dict(s["status_dist"]),
             "sesiones_totales": len(fechas_grupo),
         })

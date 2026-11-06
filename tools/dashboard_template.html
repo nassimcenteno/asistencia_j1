@@ -16,7 +16,7 @@
   --bg:#F8FAFC; --surface:#FFFFFF; --surface2:#F1F5F9;
   --border:#E2E8F0; --text:#0F172A; --muted:#64748B; --hover:#EEF2FF;
   /* accent/status: valores con contraste AA garantizado sobre --surface tanto en claro como en oscuro */
-  --accent:#4F46E5; --pos:#10B981; --warn:#F59E0B; --neg:#EF4444;
+  --accent:#4F46E5; --pos:#10B981; --warn:#F59E0B; --neg:#EF4444; --q4:#0EA5E9;
   --pos-soft:#D1FAE5; --pos-ink:#065F46;
   --accent-soft:#EEF2FF; --accent-ink:#3730A3; --accent-border:#C7D2FE;
   --warn-soft:#FEF3C7; --warn-ink:#92400E;
@@ -26,7 +26,7 @@
   --bg:#0F172A; --surface:#1E293B; --surface2:#0F172A;
   --border:#334155; --text:#F8FAFC; --muted:#94A3B8; --hover:#1E2D4A;
   /* --accent y --neg se aclaran en dark: los tonos "500" de light quedan casi invisibles sobre --surface oscuro (~2.3:1) */
-  --accent:#818CF8; --pos:#10B981; --warn:#F59E0B; --neg:#F87171;
+  --accent:#818CF8; --pos:#10B981; --warn:#F59E0B; --neg:#F87171; --q4:#38BDF8;
   --pos-soft:#0F2E22; --pos-ink:#6EE7B7;
   --accent-soft:#211F45; --accent-ink:#C7D2FE; --accent-border:#3730A3;
   --warn-soft:#3A2A0C; --warn-ink:#FCD34D;
@@ -53,21 +53,43 @@ body { font-family:'Inter',system-ui,sans-serif; background:var(--bg); color:var
 .tab-btn.active { background:var(--surface); color:var(--accent); box-shadow:0 1px 4px rgba(0,0,0,.12); }
 .tab-btn:hover:not(.active) { background:var(--surface2); color:var(--text); }
 
-/* ── Global period filter ───────────── */
+/* ── Barra de filtros: Proyecto / Viajeros / Período ───────────────────────────
+   Control segmentado: pista (--surface2) + opción activa elevada (--surface). Las opciones
+   multi-selección (proyecto, período) llevan un punto de color que se enciende al activarse;
+   el de selección única (viajeros) usa una "pastilla" deslizante. */
+.filters-right { flex:1 1 100%; display:flex; align-items:flex-end; gap:12px 22px; flex-wrap:wrap; } /* fila propia: al aparecer el toggle de viajeros no se desplaza el resto del layout */
+.fgroup { display:flex; flex-direction:column; gap:6px; }
+.fgroup.is-hidden { display:none; }
+.fgroup.fg-in { animation:fgIn .28s cubic-bezier(.2,.8,.2,1) both; }
+@keyframes fgIn { from { opacity:0; transform:translateY(-5px) scale(.97); } to { opacity:1; transform:none; } }
+.flbl, .qbar-lbl { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.7px; color:var(--muted); }
+.flbl { padding-left:4px; }
 .qbar { display:flex; align-items:center; gap:8px; }
-.qbar-lbl { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.6px; color:var(--muted); }
-.qbar-group { display:flex; gap:3px; padding:3px; border-radius:10px; background:var(--surface2); }
-.qchip { padding:6px 14px; border-radius:8px; font-size:13px; font-weight:600; color:var(--muted); border:none; background:transparent; cursor:pointer; transition:all .15s; }
-.qchip.active { background:var(--surface); color:var(--accent); box-shadow:0 1px 4px rgba(0,0,0,.12); }
-.qchip:hover:not(.active) { color:var(--text); }
-/* Selector de proyecto (J1 / Betta): mismos chips que el período, con punto de color y contador */
-.filters-right { display:flex; align-items:center; gap:18px; flex-wrap:wrap; }
-.proj-chip { display:inline-flex; align-items:center; gap:7px; }
-.proj-dot { width:8px; height:8px; border-radius:50%; opacity:.4; transition:opacity .15s; }
-.proj-chip.active .proj-dot { opacity:1; }
-.proj-n { font-size:11px; font-weight:600; color:var(--muted); background:var(--surface2); padding:1px 7px; border-radius:999px; }
-.proj-chip.active .proj-n { background:var(--accent-soft); color:var(--accent-ink); }
-@media(max-width:640px) { .filters-right { gap:10px 14px; width:100%; } }
+.seg, .qbar-group { position:relative; display:inline-flex; gap:2px; padding:3px; border-radius:12px; background:var(--surface2); border:1px solid var(--border); }
+.qchip, .seg-opt { position:relative; display:inline-flex; align-items:center; justify-content:center; gap:7px; padding:7px 13px; border-radius:9px; border:0; background:transparent; font-family:inherit; font-size:13px; font-weight:600; color:var(--muted); cursor:pointer; white-space:nowrap; transition:background .18s, color .18s, box-shadow .18s, transform .12s; }
+.qchip:hover:not(.active), .seg-opt:hover { color:var(--text); }
+.qchip:hover:not(.active) { background:color-mix(in srgb, var(--surface) 55%, transparent); }
+.qchip:active, .seg-opt:active { transform:scale(.97); }
+.qchip:focus-visible, .seg-opt:focus-visible { outline:2px solid var(--accent); outline-offset:1px; }
+.qchip.active { background:var(--surface); color:var(--text); box-shadow:0 1px 2px rgba(0,0,0,.10), 0 0 0 1px var(--border); }
+.q-dot, .proj-dot { width:8px; height:8px; border-radius:50%; background:var(--c, var(--accent)); opacity:.3; transition:opacity .18s, transform .18s; flex-shrink:0; }
+.qchip.active .q-dot, .qchip.active .proj-dot { opacity:1; transform:scale(1.2); }
+.seg-n { font-size:11px; font-weight:600; line-height:1; padding:3px 7px; border-radius:999px; color:var(--muted); background:var(--surface); border:1px solid var(--border); transition:background .18s, color .18s, border-color .18s; }
+.qchip.active .seg-n, .seg-opt[aria-checked="true"] .seg-n { background:var(--accent-soft); color:var(--accent-ink); border-color:var(--accent-border); }
+/* selección única con pastilla deslizante */
+.seg-single { display:inline-grid; grid-template-columns:1fr 1fr; }
+.seg-thumb { position:absolute; top:3px; bottom:3px; left:3px; width:calc(50% - 4px); border-radius:9px; background:var(--surface); box-shadow:0 1px 2px rgba(0,0,0,.10), 0 0 0 1px var(--border); transition:transform .26s cubic-bezier(.4,0,.2,1); pointer-events:none; }
+.seg-single[data-pos="1"] .seg-thumb { transform:translateX(calc(100% + 2px)); }
+.seg-opt { z-index:1; }
+.seg-opt[aria-checked="true"] { color:var(--text); }
+@media(max-width:640px) {
+  .filters-right { width:100%; gap:12px; }
+  .fgroup { flex:1 1 100%; }
+  .seg, .seg-single { display:flex; width:100%; }
+  .seg-single { display:grid; }
+  .seg .qchip, .seg-opt { flex:1; padding:8px 6px; }
+}
+@media(prefers-reduced-motion:reduce) { .fgroup.fg-in { animation:none; } .seg-thumb, .qchip, .seg-opt { transition:none; } }
 
 /* ── Card ────────────── */
 .card { background:var(--surface); border:1px solid var(--border); border-radius:16px; box-shadow:0 1px 3px rgba(0,0,0,.06); }
@@ -155,7 +177,8 @@ body { font-family:'Inter',system-ui,sans-serif; background:var(--bg); color:var
 @media(max-width:900px) { .charts-2col { grid-template-columns:1fr !important; } }
 /* Grids de 4 estadísticas (modal-stat Q1..Total, composición de grupo):
    a 2 columnas en pantallas chicas — a 4 columnas se cortaban dentro del bottom-sheet móvil. */
-@media(max-width:480px) { .grid4 { grid-template-columns:repeat(2,1fr) !important; } }
+.grid5 { display:grid; grid-template-columns:repeat(5,1fr); gap:10px; margin-bottom:20px; }
+@media(max-width:480px) { .grid4 { grid-template-columns:repeat(2,1fr) !important; } .grid5 { grid-template-columns:repeat(2,1fr); } .grid5 > :last-child { grid-column:1/-1; } }
 @media(max-width:640px) {
   .tab-text { display:none; }
   .kpi-inner { grid-template-columns:repeat(2,1fr) !important; }
@@ -235,21 +258,25 @@ body { font-family:'Inter',system-ui,sans-serif; background:var(--bg); color:var
       <span class="tab-text">Riesgo</span>
     </button>
   </div>
-    <div class="filters-right">
-      <div class="qbar" id="projBar">
-        <span class="qbar-lbl">Proyecto</span>
-        <div class="qbar-group">
-          <button class="qchip proj-chip active" data-proj="j1" onclick="toggleProj('j1')"><span class="proj-dot" style="background:var(--accent)"></span>J1<span class="proj-n" id="projN-j1"></span></button>
-          <button class="qchip proj-chip active" data-proj="betta" onclick="toggleProj('betta')"><span class="proj-dot" style="background:var(--warn)"></span>Betta<span class="proj-n" id="projN-betta"></span></button>
+    <div class="filters-right" id="filtersBar">
+      <div class="fgroup" id="projBar">
+        <span class="flbl">Proyecto</span>
+        <div class="seg" role="group" aria-label="Proyecto">
+          <button class="qchip proj-chip active" data-proj="j1" aria-pressed="true" onclick="toggleProj('j1')"><span class="proj-dot" style="--c:var(--accent)"></span>J1<span class="seg-n" id="projN-j1"></span></button>
+          <button class="qchip proj-chip active" data-proj="betta" aria-pressed="true" onclick="toggleProj('betta')"><span class="proj-dot" style="--c:var(--warn)"></span>Betta<span class="seg-n" id="projN-betta"></span></button>
         </div>
       </div>
-      <div class="qbar" id="qbarGlobal">
-        <span class="qbar-lbl">Período</span>
-        <div class="qbar-group">
-          <button class="qchip active" data-q="Q1" onclick="toggleQ('Q1')">Q1</button>
-          <button class="qchip active" data-q="Q2" onclick="toggleQ('Q2')">Q2</button>
-          <button class="qchip active" data-q="Q3" onclick="toggleQ('Q3')">Q3</button>
+      <div class="fgroup is-hidden" id="viajerosBar">
+        <span class="flbl">Betta Viajeros</span>
+        <div class="seg seg-single" role="radiogroup" aria-label="Betta Viajeros" data-pos="0">
+          <span class="seg-thumb"></span>
+          <button class="seg-opt" role="radio" aria-checked="true" data-v="con" onclick="setViajeros(true)">Con viajeros<span class="seg-n" id="viaN-con"></span></button>
+          <button class="seg-opt" role="radio" aria-checked="false" data-v="sin" onclick="setViajeros(false)">Sin viajeros<span class="seg-n" id="viaN-sin"></span></button>
         </div>
+      </div>
+      <div class="fgroup" id="qbarGlobal">
+        <span class="flbl">Período</span>
+        <div class="seg" id="qSeg" role="group" aria-label="Período"></div>
       </div>
     </div>
   </div>
@@ -288,7 +315,7 @@ body { font-family:'Inter',system-ui,sans-serif; background:var(--bg); color:var
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
           <div>
             <div class="card-title" style="margin-bottom:0">Evolución Semanal — % Asistencia</div>
-            <div style="font-size:12px;color:var(--muted);margin-top:2px">Puntos naranjos = eventos especiales</div>
+            <div style="font-size:12px;color:var(--muted);margin-top:2px">Puntos naranjos = eventos especiales · puntos grises = semanas con ≤25 participantes (excluidas del resumen)</div>
           </div>
           <div id="evolPromLabel" style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--muted)">
             <svg width="20" height="8" viewBox="0 0 20 2"><line x1="0" y1="1" x2="20" y2="1" stroke="var(--muted)" stroke-width="1.5" stroke-dasharray="4 3"/></svg>
@@ -349,11 +376,7 @@ body { font-family:'Inter',system-ui,sans-serif; background:var(--bg); color:var
       <div class="flex items-center justify-between flex-wrap gap-3 p-4" style="border-bottom:1px solid var(--border)">
         <span class="text-sm font-semibold">Cambios de Status entre Quarters</span>
         <div class="flex gap-2 items-center">
-          <select class="ctrl" id="filterMatrixTrans" onchange="renderMatrix()">
-            <option value="q1q2">Q1 → Q2</option>
-            <option value="q2q3">Q2 → Q3</option>
-            <option value="q1q3">Q1 → Q3</option>
-          </select>
+          <select class="ctrl" id="filterMatrixTrans" onchange="renderMatrix()" aria-label="Transición de quarters"></select>
           <select class="ctrl" id="filterMatrixTipo" onchange="updateMatrixGrupos();renderMatrix()">
             <option value="">Todos los tipos</option>
             <option value="GBU">GBU</option><option value="GDA">GDA</option><option value="GDC">GDC</option>
@@ -444,6 +467,7 @@ body { font-family:'Inter',system-ui,sans-serif; background:var(--bg); color:var
             <th class="sortable" id="th-p-q1" onclick="sortPersonas('pct_q1')">Q1% <span class="sort-ind">↕</span></th>
             <th class="sortable" id="th-p-q2" onclick="sortPersonas('pct_q2')">Q2% <span class="sort-ind">↕</span></th>
             <th class="sortable" id="th-p-q3" onclick="sortPersonas('pct_q3')">Q3% <span class="sort-ind">↕</span></th>
+            <th class="sortable" id="th-p-q4" onclick="sortPersonas('pct_q4')">Q4% <span class="sort-ind">↕</span></th>
             <th class="sortable" id="th-p-total" onclick="sortPersonas('pct_total')">Total% <span class="sort-ind">↕</span></th>
             <th class="sortable" id="th-p-status" onclick="sortPersonas('status')">Status <span class="sort-ind">↕</span></th>
           </tr></thead>
@@ -476,16 +500,23 @@ let DATA = DATA_FULL;
 // Con un solo proyecto se recalculan en cliente los agregados globales (KPIs, tipos,
 // evolución, riesgo) a partir de las personas filtradas; los campos por persona/grupo no cambian.
 const PALL = ['j1','betta'];
-const PNAME = { j1:'J1', betta:'Proyecto Betta' };
+const PNAME = { j1:'J1', betta:'Betta' };
 let PSEL = new Set(PALL);
 const isAllProj = () => PSEL.size === PALL.length;
-const projLabel = () => PALL.filter(x => PSEL.has(x)).map(x => PNAME[x]).join(' + ');
+// Toggle "Con / Sin viajeros": solo aplica cuando Betta es el ÚNICO proyecto seleccionado.
+// Excluye a GDC BETTA VIAJEROS de todo el dashboard (KPIs, tablas, gráficos, riesgo, modales).
+const VIAJEROS = 'GDC BETTA VIAJEROS';
+let VSEL = true;                                         // true = con viajeros
+const viajerosVisible = () => PSEL.size === 1 && PSEL.has('betta');
+const excludeViajeros = () => viajerosVisible() && !VSEL;
+const projLabel = () => PALL.filter(x => PSEL.has(x)).map(x => PNAME[x]).join(' + ') + (excludeViajeros() ? ' sin Viajeros' : '');
 
 function buildView() {
-  if (isAllProj()) return DATA_FULL;
+  const exV = excludeViajeros();
+  if (isAllProj() && !exV) return DATA_FULL;
   const F = DATA_FULL;
-  const personas = F.personas.filter(p => PSEL.has(p.proyecto));
-  const grupos = F.grupos.filter(g => PSEL.has(g.proyecto));
+  const personas = F.personas.filter(p => PSEL.has(p.proyecto) && !(exV && p.grupo_actual === VIAJEROS));
+  const grupos = F.grupos.filter(g => PSEL.has(g.proyecto) && !(exV && g.nombre === VIAJEROS));
   const gset = new Set(grupos.map(g => g.nombre));
   const asist = personas.reduce((s,p) => s + p.total_asistencias, 0);
   const posib = personas.reduce((s,p) => s + p.total_sesiones, 0);
@@ -514,8 +545,16 @@ function buildView() {
     personas, grupos, tipos, evolucion, at_risk };
 }
 
-// ── FILTRO DE PERÍODO (Q1/Q2/Q3 combinables) ──────────────────────────────
-const QALL = ['Q1','Q2','Q3'];
+// ── FILTRO DE PERÍODO (Q1..Q4 combinables) ──────────────────────────────
+const QALL = ['Q1','Q2','Q3','Q4'];
+// Rango y color de cada quarter (el color es el mismo que usa el chart comparativo).
+const Q_INFO = { Q1:{t:'Ene–Mar',c:'--accent'}, Q2:{t:'Abr–Jul',c:'--pos'}, Q3:{t:'Ago–16 Oct',c:'--warn'}, Q4:{t:'Desde 17 Oct',c:'--q4'} };
+function qChip(q, on, handler) {
+  return `<button class="qchip${on?' active':''}" data-q="${q}" aria-pressed="${on}" title="${q} · ${Q_INFO[q].t}" onclick="${handler}"><span class="q-dot" style="--c:var(${Q_INFO[q].c})"></span>${q}</button>`;
+}
+function renderQSeg() {
+  document.getElementById('qSeg').innerHTML = QALL.map(q => qChip(q, QSEL.has(q), `toggleQ('${q}')`)).join('');
+}
 let QSEL = new Set(QALL);            // filtro GLOBAL (chips del header)
 let modalQ = new Set(QALL);          // filtro LOCAL del pop-up abierto
 const qKeys  = (qs=QSEL) => QALL.filter(q => qs.has(q));
@@ -564,14 +603,34 @@ function scopedGlobalPct() {
 function toggleQ(q) {
   if (QSEL.has(q)) { if (QSEL.size === 1) return; QSEL.delete(q); }
   else QSEL.add(q);
-  document.querySelectorAll('#qbarGlobal .qchip').forEach(c => c.classList.toggle('active', QSEL.has(c.dataset.q)));
+  renderQSeg();
   applyGlobalQ();
 }
 function toggleProj(p) {
   if (PSEL.has(p)) { if (PSEL.size === 1) return; PSEL.delete(p); }
   else PSEL.add(p);
-  document.querySelectorAll('#projBar .proj-chip').forEach(c => c.classList.toggle('active', PSEL.has(c.dataset.proj)));
+  syncFilterUI();
   applyProject();
+}
+function setViajeros(con) {
+  if (VSEL === con) return;
+  VSEL = con;
+  syncFilterUI();
+  applyProject();
+}
+// Refleja PSEL / VSEL en la barra de filtros (chips de proyecto, visibilidad y posición del toggle de viajeros).
+function syncFilterUI() {
+  document.querySelectorAll('#projBar .proj-chip').forEach(c => {
+    const on = PSEL.has(c.dataset.proj);
+    c.classList.toggle('active', on);
+    c.setAttribute('aria-pressed', on);
+  });
+  const bar = document.getElementById('viajerosBar');
+  const show = viajerosVisible(), wasHidden = bar.classList.contains('is-hidden');
+  bar.classList.toggle('is-hidden', !show);
+  if (show && wasHidden) { bar.classList.remove('fg-in'); void bar.offsetWidth; bar.classList.add('fg-in'); }
+  bar.querySelector('.seg-single').dataset.pos = VSEL ? '0' : '1';
+  bar.querySelectorAll('.seg-opt').forEach(b => b.setAttribute('aria-checked', String((b.dataset.v === 'con') === VSEL)));
 }
 function applyProject() {
   DATA = buildView();
@@ -607,7 +666,7 @@ function modalQBar() {
   return `<div class="qbar" style="margin:0 0 14px">
     <span class="qbar-lbl">Período</span>
     <div class="qbar-group">
-      ${QALL.map(q => `<button class="qchip${modalQ.has(q)?' active':''}" onclick="toggleModalQ('${q}')">${q}</button>`).join('')}
+      ${QALL.map(q => qChip(q, modalQ.has(q), `toggleModalQ('${q}')`)).join('')}
     </div>
   </div>`;
 }
@@ -710,7 +769,7 @@ function navToStatus(page, status) {
 // ── SORT ─────────────────────────────────────────────────────────────────
 const KEY_TO_ID = {
   nombre_completo:'nombre',grupo_actual:'grupo',tipo_grupo:'tipo',
-  pct_total:'total',pct_q1:'q1',pct_q2:'q2',pct_q3:'q3',status:'status',
+  pct_total:'total',pct_q1:'q1',pct_q2:'q2',pct_q3:'q3',pct_q4:'q4',status:'status',
   pct_asistencia:'pct',num_miembros:'miembros',pct_membresia:'mem',
   ultima_asistencia:'ultima',nombre:'nombre',
 };
@@ -874,8 +933,15 @@ function renderChartTipos() {
   }
 }
 
+// Semanas "parciales": con 25 participantes o menos en el denominador (p. ej. fechas donde solo se reunió un
+// grupo). Se siguen dibujando, pero en gris y SIN contar en Mejor / Peor / Promedio semanal ni en Semanas.
+const MIN_PARTICIPANTES_SEMANA = 25;
+const semanaParcial = e => e.total_aplica <= MIN_PARTICIPANTES_SEMANA;
+
 function renderChartEvolucion() {
   const ev = (DATA.evolucion || []).filter(e => QSEL.has(e.quarter));
+  const evOk = ev.filter(e => !semanaParcial(e));
+  const nParciales = ev.length - evOk.length;
   const avg = scopedGlobalPct();
   const ACC=cssVar('--accent'), WRN=cssVar('--warn'), SURF=cssVar('--surface');
   if (chartEvolInst) { chartEvolInst.destroy(); chartEvolInst = null; }
@@ -900,10 +966,11 @@ function renderChartEvolucion() {
       strokeColors: [SURF],
       strokeWidth: 2,
       hover: { size: 7 },
-      discrete: ev.map((e, i) => e.evento ? {
-        seriesIndex: 0, dataPointIndex: i,
-        fillColor: WRN, strokeColor: SURF, size: 7
-      } : null).filter(Boolean)
+      // gris = semana parcial (tiene prioridad sobre el color de evento); naranja = evento
+      discrete: ev.map((e, i) => semanaParcial(e)
+        ? { seriesIndex: 0, dataPointIndex: i, fillColor: cssVar('--muted'), strokeColor: SURF, size: 6 }
+        : e.evento ? { seriesIndex: 0, dataPointIndex: i, fillColor: WRN, strokeColor: SURF, size: 7 } : null
+      ).filter(Boolean)
     },
     dataLabels: {
       enabled: true,
@@ -920,11 +987,13 @@ function renderChartEvolucion() {
       custom: function({ dataPointIndex }) {
         const e = ev[dataPointIndex];
         const evLabel = e.evento ? `<div style="font-size:11px;color:${cssVar('--warn-ink')};font-weight:600;margin-top:2px">★ ${e.evento}</div>` : '';
+        const parcial = semanaParcial(e) ? `<div style="font-size:10px;color:var(--muted);margin-top:4px;max-width:190px">Semana parcial (≤${MIN_PARTICIPANTES_SEMANA} participantes): no cuenta en las tarjetas de resumen</div>` : '';
         return `<div style="padding:10px 14px;font-family:Inter,sans-serif;min-width:160px;background:var(--surface);color:var(--text)">
           <div style="font-size:12px;font-weight:600;color:var(--text)">${fmtDate(e.fecha)}</div>
           ${evLabel}
-          <div style="font-size:20px;font-weight:800;color:${cssVar('--accent')};margin-top:4px">${e.pct}%</div>
+          <div style="font-size:20px;font-weight:800;color:${semanaParcial(e) ? cssVar('--muted') : cssVar('--accent')};margin-top:4px">${e.pct}%</div>
           <div style="font-size:11px;color:var(--muted)">${e.asistentes} / ${e.total_aplica} personas</div>
+          ${parcial}
         </div>`;
       }
     },
@@ -935,12 +1004,12 @@ function renderChartEvolucion() {
   if (evolPromLabel) evolPromLabel.querySelector('span').textContent = `Promedio ${avg}%`;
   // Tarjetas de resumen
   const evolEl0 = document.getElementById('evolStats');
-  if (!ev.length) { if (evolEl0) evolEl0.innerHTML = ''; return; }
-  const best = ev.reduce((a,b) => a.pct > b.pct ? a : b);
-  const worst = ev.reduce((a,b) => a.pct < b.pct ? a : b);
-  const primera = fmtDate(ev[0].fecha);
-  const ultima = fmtDate(ev[ev.length-1].fecha);
-  const avgPersonas = Math.round(ev.reduce((s,e)=>s+e.asistentes,0)/ev.length);
+  if (!evOk.length) { if (evolEl0) evolEl0.innerHTML = ''; return; }
+  const best = evOk.reduce((a,b) => a.pct > b.pct ? a : b);
+  const worst = evOk.reduce((a,b) => a.pct < b.pct ? a : b);
+  const primera = fmtDate(evOk[0].fecha);
+  const ultima = fmtDate(evOk[evOk.length-1].fecha);
+  const avgPersonas = Math.round(evOk.reduce((s,e)=>s+e.asistentes,0)/evOk.length);
   const cards = [
     { label:'Mejor semana', val:best.pct+'%', sub:fmtDate(best.fecha)+(best.evento?' · '+best.evento:''), col:'#10B981',
        icon:`<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#10B981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>` },
@@ -948,7 +1017,7 @@ function renderChartEvolucion() {
        icon:`<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#EF4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/><polyline points="17 18 23 18 23 12"/></svg>` },
     { label:'Promedio semanal', val:avgPersonas, sub:'personas por sesión', col:cssVar('--accent'),
        icon:`<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="${cssVar('--accent')}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>` },
-    { label:'Semanas', val:ev.length, sub:`${primera} – ${ultima}`, col:'#0EA5E9',
+    { label:'Semanas', val:evOk.length, sub:`${primera} – ${ultima}` + (nParciales ? ` · ${nParciales} parcial${nParciales>1?'es':''} excl.` : ''), col:'#0EA5E9',
        icon:`<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#0EA5E9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>` },
   ];
   const evolEl = document.getElementById('evolStats');
@@ -972,13 +1041,14 @@ function renderChartEvolucion() {
 const Q_META_BASE = {
   Q1: { name:'Q1 (Ene–Mar)', key:'pct_q1' },
   Q2: { name:'Q2 (Abr–Jul)', key:'pct_q2' },
-  Q3: { name:'Q3 (Ago+)',    key:'pct_q3' },
+  Q3: { name:'Q3 (Ago–16 Oct)', key:'pct_q3' },
+  Q4: { name:'Q4 (17 Oct+)',  key:'pct_q4' },
 };
 function renderChartQ1Q2() {
   const g = DATA.grupos;
   const qs = qKeys();
   // colores resueltos en cada render para reflejar el tema actual (claro/oscuro)
-  const Q_COL = { Q1:cssVar('--accent'), Q2:cssVar('--pos'), Q3:cssVar('--warn') };
+  const Q_COL = { Q1:cssVar('--accent'), Q2:cssVar('--pos'), Q3:cssVar('--warn'), Q4:cssVar('--q4') };
   const Q_META = Object.fromEntries(Object.entries(Q_META_BASE).map(([k,v]) => [k, { ...v, color:Q_COL[k] }]));
   // En mobile, 17 grupos x 3 barras apretados al ancho del viewport quedan ilegibles (y forzar
   // scroll horizontal se sentía "cortado"). En vez de eso, el chart pasa a barras horizontales:
@@ -1077,11 +1147,18 @@ function updateMatrixGrupos() {
   [...new Set(DATA.personas.filter(p=>!tipo||p.tipo_grupo===tipo).map(p=>p.grupo_actual))].sort()
     .forEach(g=>{const o=document.createElement('option');o.value=g;o.text=g;if(g===prev)o.selected=true;sel.appendChild(o);});
 }
-const MATRIX_TRANS={
-  q1q2:{from:'status_q1',to:'status_q2',label:'Q1 → Q2'},
-  q2q3:{from:'status_q2',to:'status_q3',label:'Q2 → Q3'},
-  q1q3:{from:'status_q1',to:'status_q3',label:'Q1 → Q3'},
-};
+// Todas las transiciones posibles entre quarters (de menor a mayor), agrupadas por quarter de origen.
+const MATRIX_TRANS={};
+QALL.forEach((a,i)=>QALL.slice(i+1).forEach(b=>{
+  MATRIX_TRANS[(a+b).toLowerCase()]={from:'status_'+a.toLowerCase(),to:'status_'+b.toLowerCase(),label:a+' → '+b};
+}));
+function buildMatrixTransSelect() {
+  const sel=document.getElementById('filterMatrixTrans');
+  sel.innerHTML=QALL.slice(0,-1).map((a,i)=>
+    `<optgroup label="Desde ${a}">${QALL.slice(i+1).map(b=>`<option value="${(a+b).toLowerCase()}">${a} → ${b}</option>`).join('')}</optgroup>`
+  ).join('');
+  sel.value=(QALL[QALL.length-2]+QALL[QALL.length-1]).toLowerCase();   // por defecto: la transición más reciente
+}
 function renderMatrix() {
   const tipo=document.getElementById('filterMatrixTipo').value;
   const grupo=document.getElementById('filterMatrixGrupo').value;
@@ -1162,6 +1239,7 @@ function renderPersonas() {
       <td data-label="Q1%" style="font-weight:600;color:${pctColor(p.pct_q1)}">${p.pct_q1}%</td>
       <td data-label="Q2%" style="font-weight:600;color:${pctColor(p.pct_q2)}">${p.pct_q2}%</td>
       <td data-label="Q3%" style="font-weight:600;color:${pctColor(p.pct_q3)}">${p.pct_q3}%</td>
+      <td data-label="Q4%" style="font-weight:600;color:${pctColor(p.pct_q4)}">${p.pct_q4}%</td>
       <td data-label="Total%">${pctBar(p.pct_total)}</td>
       <td data-label="Status">${badgeHtml(p.status)}</td>
       <td class="mrow">
@@ -1169,7 +1247,7 @@ function renderPersonas() {
         <div class="mrow-meta">${p.grupo_actual} · ${p.tipo_grupo||'-'}${p.rol?' · '+p.rol:''}</div>
         <div class="mrow-bottom">
           ${pctBar(p.pct_total)}
-          <div class="mrow-qs"><span>Q1 <b>${p.pct_q1}%</b></span><span>Q2 <b>${p.pct_q2}%</b></span><span>Q3 <b>${p.pct_q3}%</b></span></div>
+          <div class="mrow-qs"><span>Q1 <b>${p.pct_q1}%</b></span><span>Q2 <b>${p.pct_q2}%</b></span><span>Q3 <b>${p.pct_q3}%</b></span><span>Q4 <b>${p.pct_q4}%</b></span></div>
         </div>
       </td>
     </tr>`
@@ -1181,12 +1259,12 @@ function exportCSV(tabla) {
   let headers,rows;
   const periodo=isAllQ()?'ciclo':qKeys().join('+');
   if(tabla==='personas') {
-    headers=['Nombre','Grupo','Tipo','Rol','Q1%','Q2%','Q3%','Total% ('+periodo+')','Status ('+periodo+')'];
+    headers=['Nombre','Grupo','Tipo','Rol','Q1%','Q2%','Q3%','Q4%','Total% ('+periodo+')','Status ('+periodo+')'];
     const s=document.getElementById('filterPStatus').value;
     const g=document.getElementById('filterPGrupo').value;
     const t=document.getElementById('filterPTipo').value;
     rows=scopedPersonas().filter(p=>(!s||p.status===s)&&(!g||p.grupo_actual===g)&&(!t||p.tipo_grupo===t))
-      .map(p=>[p.nombre_completo,p.grupo_actual,p.tipo_grupo||'',p.rol||'',p.pct_q1,p.pct_q2,p.pct_q3,p.pct_total,p.status]);
+      .map(p=>[p.nombre_completo,p.grupo_actual,p.tipo_grupo||'',p.rol||'',p.pct_q1,p.pct_q2,p.pct_q3,p.pct_q4,p.pct_total,p.status]);
   } else if(tabla==='grupos') {
     headers=['Grupo','Tipo','Personas','Sesiones ('+periodo+')','%Asist ('+periodo+')','%Memb','Fieles','Activos','Inconstantes','Inactivos'];
     const tipo=document.getElementById('filterGrupoTipo').value;
@@ -1244,7 +1322,7 @@ function renderPersonModal() {
   }
   const qcard=q=>{
     const l=q.toLowerCase(),on=modalQ.has(q),pc=p['pct_'+l],a=p['asist_'+l],t=p['total_'+l],st=p['status_'+l];
-    return`<div class="modal-stat" style="${on?'':'opacity:.38'}"><div class="modal-stat-val" style="color:${pctColor(pc)}">${pc}%</div><div class="modal-stat-lbl">${q} (${a}/${t})</div>${st?`<div style="margin-top:4px">${badgeHtml(st)}</div>`:''}</div>`;
+    return`<div class="modal-stat" style="${on?'':'opacity:.38'}"><div class="modal-stat-val" style="color:${t?pctColor(pc):'var(--muted)'}">${t?pc+'%':'—'}</div><div class="modal-stat-lbl">${q} (${a}/${t})</div>${st?`<div style="margin-top:4px">${badgeHtml(st)}</div>`:''}</div>`;
   };
   const totCard=isAll(modalQ)
     ? `<div class="modal-stat"><div class="modal-stat-val" style="color:${pctColor(p.pct_total)}">${p.pct_total}%</div><div class="modal-stat-lbl">Total (${p.total_asistencias}/${p.total_sesiones})</div><div style="margin-top:4px">${badgeHtml(p.status)}</div></div>`
@@ -1260,8 +1338,8 @@ function renderPersonModal() {
     </div>
     ${modalQBar()}
     ${rachaHtml}
-    <div class="grid4" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px">
-      ${qcard('Q1')}${qcard('Q2')}${qcard('Q3')}${totCard}
+    <div class="grid5">
+      ${qcard('Q1')}${qcard('Q2')}${qcard('Q3')}${qcard('Q4')}${totCard}
     </div>
     <div style="font-size:14px;font-weight:600;margin-bottom:10px">Historial <span style="font-size:12px;font-weight:400;color:var(--muted)">✓ asistió · ✗ faltó · ★ evento</span></div>
     <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:20px" id="modalTL"></div>
@@ -1272,11 +1350,11 @@ function renderPersonModal() {
     const cls=s.evento?'evento':s.asistio?'asistio':'falto';
     const icon=s.asistio?'✓':'✗';
     const lbl=s.evento?fmtDate(s.fecha)+' '+s.evento:fmtDate(s.fecha);
-    const qStyle=s.quarter==='Q2'?'outline:2px solid #10B98140;outline-offset:-2px':s.quarter==='Q3'?'outline:2px solid #F59E0B40;outline-offset:-2px':'';
+    const qStyle=s.quarter==='Q2'?'outline:2px solid #10B98140;outline-offset:-2px':s.quarter==='Q3'?'outline:2px solid #F59E0B40;outline-offset:-2px':s.quarter==='Q4'?'outline:2px solid #0EA5E940;outline-offset:-2px':'';
     return`<div class="tl-dot ${cls}" style="${qStyle}">${icon}<span class="tl-label">${fmtDate(s.fecha)}</span><span class="tt">${lbl}</span></div>`;
   }).join('')||'<span style="font-size:12px;color:var(--muted)">Sin sesiones en el período seleccionado</span>';
-  const chartQ=[...['Q1','Q2','Q3'].map(q=>p['pct_'+q.toLowerCase()]),selPct];
-  const chartLbl=['Q1','Q2','Q3',selLbl];
+  const chartQ=[...QALL.map(q=>p['pct_'+q.toLowerCase()]),selPct];
+  const chartLbl=[...QALL,selLbl];
   if(drillChart){drillChart.destroy();drillChart=null;}
   drillChart=new ApexCharts(document.getElementById('modalChart'),{
     ...baseChartOpts(),
@@ -1400,6 +1478,13 @@ document.addEventListener('DOMContentLoaded',()=>{
     const n = DATA_FULL.personas.filter(p => p.proyecto === x).length;
     document.getElementById('projN-'+x).textContent = n;
   });
+  const nBetta = DATA_FULL.personas.filter(p => p.proyecto === 'betta').length;
+  const nVia = DATA_FULL.personas.filter(p => p.grupo_actual === VIAJEROS).length;
+  document.getElementById('viaN-con').textContent = nBetta;
+  document.getElementById('viaN-sin').textContent = nBetta - nVia;
+  buildMatrixTransSelect();
+  renderQSeg();
+  syncFilterUI();
 
   renderKPIs();
   renderRankingGrupos();

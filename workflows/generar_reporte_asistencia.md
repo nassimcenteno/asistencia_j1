@@ -66,7 +66,9 @@ Al agregar una nueva excepción o lineamiento: actualizar ese archivo **y** el c
 
 Stack: **Tailwind CSS CDN + ApexCharts + Inter font + dark mode** (CSS custom properties).
 
-**Filtro global de período:** chips Q1/Q2/Q3 combinables (mín. 1) a la derecha de las pestañas. Recalcula KPIs, ranking, evolución, tablas de grupos y personas, y export CSV al subconjunto de quarters elegido. Con los 3 Q activos no recalcula nada (idéntico a sin filtro). No afecta: dona por tipo (poblacional), lista de "En Riesgo" (global; solo su % por fila obedece), matriz de status (selector propio), "Participantes"/"% membresía" (roster completo).
+**Filtro global de período:** chips Q1/Q2/Q3/Q4 combinables (mín. 1; Q4 = desde el 17/10/2026) a la derecha de las pestañas. Recalcula KPIs, ranking, evolución, tablas de grupos y personas, y export CSV al subconjunto de quarters elegido. Con los 3 Q activos no recalcula nada (idéntico a sin filtro). No afecta: dona por tipo (poblacional), lista de "En Riesgo" (global; solo su % por fila obedece), matriz de status (selector propio), "Participantes"/"% membresía" (roster completo).
+
+**Barra de filtros (Proyecto · Betta Viajeros · Período):** control segmentado con puntos de color y contadores. El toggle **Con / Sin viajeros** solo aparece cuando Betta es el único proyecto y excluye a GDC BETTA VIAJEROS de todo el dashboard.
 
 **Toggle de proyecto (J1 / Betta):** junto al filtro de período, chips combinables (mín. 1, con contador de personas). Betta = BETTA, GAMMA, BETTA VIAJEROS, OMEGA; J1 = el resto. Con ambos activos no cambia nada; con uno solo se recalculan KPIs, dona, evolución, riesgo, rankings y tablas, y se resetean los selects de grupo. Ver `lineamientos_reporte.md` §14.
 
@@ -79,6 +81,7 @@ Stack: **Tailwind CSS CDN + ApexCharts + Inter font + dark mode** (CSS custom pr
 - Donut de distribución por tipo de grupo (GBU / GDA / GDC) con overlay HTML para el total en el centro
 - Evolución semanal: área con gradiente, marcadores naranjos para eventos especiales (`markers.discrete`), línea punteada gris de promedio
 - 4 summary cards debajo del chart: Mejor semana / Peor semana / Promedio semanal (N personas) / Total semanas — cada una con icono SVG
+- Las semanas con ≤25 participantes se marcan con punto gris y no cuentan en esas 4 cards (ver `lineamientos_reporte.md` §15)
 
 **Tab Grupos:**
 - Tabla de grupos: personas, sesiones (según `GROUP_START_DATES`), % asistencia, % membresía
