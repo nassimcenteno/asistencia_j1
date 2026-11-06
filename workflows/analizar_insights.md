@@ -2,7 +2,7 @@
 
 ## Qué hace este sub-agente
 
-Analiza el reporte de asistencia J1 en profundidad y produce insights que el dashboard no puede mostrar directamente: momentum individual entre quarters (Q1→Q2 y Q2→Q3), alertas críticas agrupadas, impacto de eventos, análisis por rol, columna vertebral, nuevos ingresos y semáforo de grupos.
+Analiza el reporte de asistencia J1 en profundidad y produce insights que el dashboard no puede mostrar directamente: momentum individual entre quarters (Q1→Q2, Q2→Q3 y Q3→Q4), alertas críticas agrupadas, impacto de eventos, análisis por rol, columna vertebral, nuevos ingresos y semáforo de grupos.
 
 ---
 
@@ -30,7 +30,7 @@ Que exista `.tmp/asistencia_processed.json` (el pipeline ya debe haberse corrido
 ```
 1. python subagents/sub_insights/analyze.py
    → El script genera insights_report_YYYY-MM-DD.md y .html con la fecha del día
-   → Abre el HTML automáticamente en el browser
+   → Abre el HTML automáticamente en el browser (con la variable CI=true no lo abre)
 2. Leer: subagents/sub_insights/reports/insights_report_YYYY-MM-DD.md
    (usar glob o leer el archivo más reciente de la carpeta reports/)
 3. Presentar los hallazgos más relevantes directamente en el chat
@@ -53,22 +53,23 @@ Los archivos anteriores se conservan en `reports/` — nunca se sobreescriben.
 |---|---------|-------------|
 | 0 | KPIs Globales | Resumen rápido del ciclo |
 | 1 | Semáforo de Grupos | Comparar grupos, ver cuáles subieron/bajaron |
-| 2 | Momentum entre Quarters | Retención/churn individual: dos matrices, Q1→Q2 y Q2→Q3 |
+| 2 | Momentum entre Quarters | Retención/churn individual: una matriz por transición (Q1→Q2, Q2→Q3, Q3→Q4) |
 | 3 | Columna Vertebral | Identificar los más comprometidos del ciclo |
 | 4 | Alertas Críticas | Ver quiénes necesitan atención pastoral urgente |
 | 5 | Impacto de Eventos | Evaluar si los eventos especiales movieron la aguja |
 | 6 | Sesiones más Débiles | Detectar patrones de baja asistencia en fechas específicas |
 | 7 | Análisis por Rol | Ver compromiso de mentores vs comentores vs discípulos |
-| 8 | Nuevos Ingresos | Evaluar cómo arrancaron los que ingresaron en el ciclo |
+| 8 | Nuevos Ingresos | Evaluar cómo arrancaron los que ingresaron (asistencia **desde su ingreso**, no por quarter) |
 
 ---
 
 ## Notas de interpretación (no alucinar contexto)
 
 - **Delta Q2 negativo en LAMBDA / OMEGA (antes "NEW BETTA")**: esperado. Son grupos creados el 16/05, solo tienen sesiones desde esa fecha a nivel GRUPO. Su denominador Q2 es menor → % puede parecer bajo vs grupos con todo el ciclo.
-- **pct_q1 = "—" en grupos nuevos**: correcto, no tenían sesiones en Q1. Igual con **pct_q3 = "—"** hasta que haya sesiones de agosto en adelante cargadas en el Sheet.
-- **Quarters (desde 2026-09):** Q1 = ene–mar, Q2 = abr–**jul**, Q3 = ago–TBD. La sección Momentum trae **dos matrices**: Q1→Q2 y Q2→Q3. Los titulares (insight clave, `top_mejora`/`top_caida`, delta global) usan la transición más reciente con datos (Q2→Q3 si Q3 ya tiene sesiones, si no Q1→Q2).
+- **pct_q1 = "—" en grupos nuevos**: correcto, no tenían sesiones en Q1. Igual con **pct_q3 = "—"** / **pct_q4 = "—"** mientras no haya sesiones de ese quarter cargadas en el Sheet.
+- **Quarters (desde 2026-11):** Q1 = ene–mar, Q2 = abr–jul, Q3 = 01/08–16/10, **Q4 = desde el 17/10/2026**. La sección Momentum trae **una matriz por transición** (`TRANSICIONES` en `analyze.py`). Los titulares (insight clave, `top_mejora`/`top_caida`, delta global) usan la transición más reciente con datos (Q3→Q4 si Q4 ya tiene sesiones, si no Q2→Q3, si no Q1→Q2). Q4 tiene pocas sesiones al inicio: sus % son volátiles.
 - **Momentum matrix**: cada matriz solo incluye personas con sesiones en AMBOS quarters de esa transición. Nuevos ingresos que solo tienen un quarter NO aparecen.
+- **Nuevos ingresos:** la sección 8 lista a toda persona con `FECHA_INGRESO` (no solo a la cohorte reciente) y mide el arranque con el **% desde su ingreso** (`pct_total`, nivel persona), no con un quarter fijo: así la cohorte del 17/10 (RHO/MERCY) no aparece con 0%. "Buen arranque" = ≥70% desde su ingreso.
 - **Racha positiva**: sesiones consecutivas asistidas. Racha negativa: sesiones consecutivas ausentes.
 - **at_risk**: definido como 0 asistencias en las últimas 4 sesiones que aplican al grupo. Es dinámico.
 - **Ojo con `total_sesiones` a nivel persona vs. nivel grupo (desde 2026-07):** `p["total_sesiones"]`/`p["sesiones"]` reflejan el historial de la PERSONA (independiente de `GROUP_START_DATES` — cuenta desde su propia `FECHA_INGRESO`, o desde el inicio del ciclo si no tiene). Este sub-agente agrega esos campos por grupo (`gr["sesiones_total"]`), así que su "semáforo de grupos" puede diferir del número que muestra el dashboard principal (que calcula el nivel grupo por separado, aplicando `GROUP_START_DATES`). Si una pregunta requiere el número oficial de sesiones de un grupo, usar el dashboard (`d["grupos"]`), no este reporte.

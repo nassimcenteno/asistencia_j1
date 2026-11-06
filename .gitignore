@@ -1,7 +1,7 @@
 .env
 config/*.json
-.tmp/asistencia_*.json
-.tmp/dashboard*.html
+.tmp/*
+!.tmp/.gitkeep
 subagents/sub_insights/reports/*.html
 subagents/sub_insights/reports/*.md
 __pycache__/

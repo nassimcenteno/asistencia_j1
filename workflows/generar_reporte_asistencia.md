@@ -26,6 +26,10 @@ Generar un dashboard HTML interactivo con la asistencia semanal del grupo J1 de 
 | `generate_dashboard.py` | `asistencia_processed.json` + `tools/dashboard_template.html` | `.tmp/dashboard.html` | Inyecta el JSON en el template (`__ASISTENCIA_DATA__` → `const DATA`). ~40 líneas |
 | `run_report.py` | — | Corre los 3 anteriores | Orquestador para uso local |
 
+**Notas de los scripts:**
+- `fetch_sheets_data.py` cruza `02. Imp_Asistencia` por (fecha, DNI) y parchea las asistencias que `03` dejó en 0 por `KEY_FECHA_DNI` vacía (imprime cuántas; si aparece seguido, arrastrar la fórmula de la columna G en `02`).
+- `process_data.py` imprime el **conteo** de personas con asistencias previas a su `FECHA_INGRESO` (sin nombres: los logs de Actions pueden ser públicos).
+
 **La UI del dashboard vive en `tools/dashboard_template.html`** — HTML/CSS/JS normal. Para cambiar el dashboard se edita ese archivo directamente (no hay f-string con llaves duplicadas). `generate_dashboard.py` no contiene markup.
 
 ---
@@ -64,36 +68,34 @@ Al agregar una nueva excepción o lineamiento: actualizar ese archivo **y** el c
 
 ## Features del dashboard
 
-Stack: **Tailwind CSS CDN + ApexCharts + Inter font + dark mode** (CSS custom properties).
+Stack: **Tailwind CSS CDN + ApexCharts + Inter font + dark mode** (CSS custom properties). Estado en JS: `DATA_FULL` (JSON), `DATA` (vista activa tras filtro de proyecto/viajeros), `PSEL`, `VSEL`, `QSEL`, `modalQ`.
 
-**Filtro global de período:** chips Q1/Q2/Q3/Q4 combinables (mín. 1; Q4 = desde el 17/10/2026) a la derecha de las pestañas. Recalcula KPIs, ranking, evolución, tablas de grupos y personas, y export CSV al subconjunto de quarters elegido. Con los 3 Q activos no recalcula nada (idéntico a sin filtro). No afecta: dona por tipo (poblacional), lista de "En Riesgo" (global; solo su % por fila obedece), matriz de status (selector propio), "Participantes"/"% membresía" (roster completo).
-
-**Barra de filtros (Proyecto · Betta Viajeros · Período):** control segmentado con puntos de color y contadores. El toggle **Con / Sin viajeros** solo aparece cuando Betta es el único proyecto y excluye a GDC BETTA VIAJEROS de todo el dashboard.
-
-**Toggle de proyecto (J1 / Betta):** junto al filtro de período, chips combinables (mín. 1, con contador de personas). Betta = BETTA, GAMMA, BETTA VIAJEROS, OMEGA; J1 = el resto. Con ambos activos no cambia nada; con uno solo se recalculan KPIs, dona, evolución, riesgo, rankings y tablas, y se resetean los selects de grupo. Ver `lineamientos_reporte.md` §14.
-
-**Filtro de período local en los pop-ups:** el modal de persona y el de grupo tienen su propia fila de chips Q, independiente del global (arranca copiándolo). Solo afecta al contenido de ese pop-up: tarjeta de selección + historial + mini-chart en persona; status cards + N sesiones + evolución + bottom-5 en grupo.
+**Fila de filtros** (debajo de las pestañas; controles segmentados con punto de color y contadores):
+- **Proyecto (J1 / Betta):** chips combinables (mín. 1) con contador de personas. Betta = BETTA, GAMMA, BETTA VIAJEROS, OMEGA; J1 = el resto. Con ambos activos no cambia nada; con uno solo se recalculan KPIs, dona, evolución, riesgo, rankings y tablas (`buildView()`) y se resetean los selects de grupo. Ver `lineamientos_reporte.md` §14.
+- **Viajeros (Con / Sin):** aparece solo cuando Betta es el único proyecto; "Sin viajeros" excluye a GDC BETTA VIAJEROS de todo el dashboard (KPIs, tablas, gráficos, riesgo, modales, CSV).
+- **Período:** chips Q1/Q2/Q3/Q4 combinables (mín. 1; Q4 = desde el 17/10/2026). Recalcula KPIs, ranking, evolución, tablas de grupos y personas y el CSV. Con los 4 Q activos no recalcula nada (idéntico a sin filtro). No afecta: dona por tipo (poblacional), lista de "En Riesgo" (global; solo su % por fila obedece), matriz de status (selector propio), "Participantes"/"% membresía" (roster completo).
+- **En los pop-ups** (persona y grupo) hay una fila de chips Q propia, independiente del global (arranca copiándolo).
 
 **4 tabs:** Resumen / Grupos / Personas / Riesgo
 
 **Tab Resumen:**
-- Ranking de grupos por % asistencia: barra proporcional con línea de referencia al promedio global
-- Donut de distribución por tipo de grupo (GBU / GDA / GDC) con overlay HTML para el total en el centro
-- Evolución semanal: área con gradiente, marcadores naranjos para eventos especiales (`markers.discrete`), línea punteada gris de promedio
-- 4 summary cards debajo del chart: Mejor semana / Peor semana / Promedio semanal (N personas) / Total semanas — cada una con icono SVG
-- Las semanas con ≤25 participantes se marcan con punto gris y no cuentan en esas 4 cards (ver `lineamientos_reporte.md` §15)
+- 7 KPI cards navegables (filtran la tabla correspondiente) con delta vs semana anterior
+- Ranking de grupos por % asistencia con línea de referencia al promedio
+- Donut por tipo de grupo (GBU / GDA / GDC) con overlay HTML para el total
+- Evolución semanal: área con gradiente, etiquetas de % en entero (el decimal va en el tooltip), punto naranja = evento, **punto gris = semana parcial** (≤25 participantes), línea punteada de promedio
+- 4 tarjetas: Mejor semana / Peor semana / Promedio semanal / Semanas — **excluyen las semanas parciales** (la de Semanas indica cuántas; ver `lineamientos_reporte.md` §15)
 
 **Tab Grupos:**
-- Tabla de grupos: personas, sesiones (según `GROUP_START_DATES`), % asistencia, % membresía
-- Comparativa por quarter por grupo (Q1 / Q2 / Q3, columnas verticales, legible, sin etiquetas amontonadas)
-- Modal de detalle por grupo: evolución del grupo (usa `sesiones_grupo`, no `sesiones`, para no arrastrar historial que no aplica al grupo) + ranking de menor asistencia
+- Comparativa por quarter por grupo (Q1–Q4, columnas; barras horizontales en mobile)
+- Tabla de grupos: personas, sesiones (según `GROUP_START_DATES`), % asistencia, % membresía, distribución de status
+- Matriz de transición de status con selector de las **6 combinaciones** de quarters (`<optgroup>` "Desde Qn"; default = la más reciente), calculada en cliente desde `status_q*`
+- Modal de grupo: evolución (usa `sesiones_grupo`; promedio ponderado = % de la tabla) + ranking de menor asistencia
 
-**Tab Personas:**
-- Tabla filtrable por nombre, grupo, tipo, status
-- Modal de detalle por persona: racha actual, historial visual, mini-chart
+**Tab Personas:** tabla filtrable/ordenable con Q1%…Q4% y export CSV · modal con racha, historial por sesión, 5 tarjetas (Q1–Q4 + selección/total; "—" si el quarter no tiene sesiones) y mini-chart.
 
-**Tab Riesgo:**
-- Lista de personas en riesgo con "hace N semanas" (no fecha cruda)
+**Tab Riesgo:** lista de personas en riesgo con "hace N semanas" (no fecha cruda).
+
+**Mobile (≤640px):** tarjetas compactas `.mrow` en Personas/Riesgo/Grupos, modal como bottom sheet, filtros apilados a todo el ancho.
 
 ---
 
@@ -162,3 +164,4 @@ GitHub Actions copia `.tmp/dashboard.html` → `index.html` antes de publicar en
 | 2026-09 | 3 quarters (Q1/Q2/Q3). Lógica per-quarter generalizada a dicts keyed por `QUARTERS` en `process_data.py` (no copiar `q1`/`q2`/`q3` a mano). La matriz de status del dashboard se recalcula client-side (`MATRIX_TRANS` + selector); el `status_matrix` del JSON era muerto y se eliminó. Para agregar Q4 / cerrar Q3: tocar `get_quarter()` + tabla en `lineamientos_reporte.md`, el resto se propaga solo |
 | 2026-07 | `GROUP_START_DATES`/`ATTENDANCE_DRIVEN_GROUPS` matchean por nombre de grupo como texto libre — un rename en el Sheet (ej. GDC NEW BETTA → GDC OMEGA) desactiva la regla sin error. Validar la clave cada vez que el Sheet reorganice grupos |
 | 2026-09 | BETTA / BETTA VIAJEROS: se reemplazó el hold `GROUP_END_DATES` y sus excepciones manuales por la regla de asistencia (`ATTENDANCE_DRIVEN_GROUPS` + `group_had_session()`): 0 asistentes en una fecha ⇒ no hubo sesión, retroactivo. El dashboard no requirió cambios — solo presenta `sesiones_totales`/`sesiones_qN`/`pct_*` que ya salen ajustados de `process_data.py` |
+| 2026-11 | 4 quarters (Q4 desde 17/10/2026): al sumar uno nuevo tocar `get_quarter()`/`Q4_START` + `QUARTERS` en `process_data.py`, `QALL`/`Q_INFO`/`Q_META_BASE` y la tabla Personas en el template, `QUARTERS`/`TRANSICIONES` en `analyze.py` y la tabla de `lineamientos_reporte.md` §2 (la matriz de transiciones y los chips se generan solos). Con un solo proyecto filtrado hay más semanas ≤25 participantes. Verificar charts en Edge headless con animaciones desactivadas |

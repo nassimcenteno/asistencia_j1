@@ -9,6 +9,10 @@ Escribe: subagents/sub_insights/reports/insights_report_YYYY-MM-DD.md
 
 Lógica: único recorrido sobre personas → acumula todo en dicts →
         computa insights → genera ambos archivos.
+
+Quarters: Q1 ene–mar · Q2 abr–jul · Q3 01/08–16/10 · Q4 desde 17/10/2026 (ver get_quarter() en
+tools/process_data.py). Las transiciones se declaran en TRANSICIONES; al sumar un quarter se agrega
+ahí y en los acumuladores de abajo.
 """
 
 import json
@@ -45,6 +49,8 @@ def delta_label(d):
 
 TIPO_NOMBRE = {"GBU": "Universitario", "GDA": "Amistad", "GDC": "Crecimiento"}
 STATUS_ORDER = ["Fiel", "Activo", "Inconstante", "Inactivo"]
+QUARTERS = ["Q1", "Q2", "Q3", "Q4"]
+TRANSICIONES = [("Q1", "Q2"), ("Q2", "Q3"), ("Q3", "Q4")]   # de más antigua a más reciente
 
 
 def momentum_counts(mdict):
@@ -73,12 +79,13 @@ grupos = defaultdict(lambda: dict(
     asist_q1=0, total_q1=0,
     asist_q2=0, total_q2=0,
     asist_q3=0, total_q3=0,
+    asist_q4=0, total_q4=0,
     at_risk=0,
 ))
 roles = defaultdict(lambda: dict(asist=0, total=0, n=0))
 fechas = defaultdict(lambda: dict(asistencias=0, total=0, evento=None))
-momentum = defaultdict(int)       # transición Q1 → Q2
-momentum_q2q3 = defaultdict(int)  # transición Q2 → Q3
+# Matriz de transición de status por par de quarters: {(Q1, Q2): {(status1, status2): n}, ...}
+momentum_by = {t: defaultdict(int) for t in TRANSICIONES}
 
 backbone = []        # excluye Mentores y Comentores
 criticos = defaultdict(list)
@@ -98,6 +105,8 @@ for p in personas:
     gr["total_q2"] += p["total_q2"]
     gr["asist_q3"] += p["asist_q3"]
     gr["total_q3"] += p["total_q3"]
+    gr["asist_q4"] += p["asist_q4"]
+    gr["total_q4"] += p["total_q4"]
     if p["at_risk"]:
         gr["at_risk"] += 1
 
@@ -114,21 +123,17 @@ for p in personas:
         if s.get("evento") and fechas[fd]["evento"] is None:
             fechas[fd]["evento"] = s["evento"]
 
-    if p["total_q1"] > 0 and p["total_q2"] > 0:
-        sq1 = p.get("status_q1") or "Inactivo"
-        sq2 = p.get("status_q2") or "Inactivo"
-        momentum[(sq1, sq2)] += 1
-    if p["total_q2"] > 0 and p["total_q3"] > 0:
-        sq2 = p.get("status_q2") or "Inactivo"
-        sq3 = p.get("status_q3") or "Inactivo"
-        momentum_q2q3[(sq2, sq3)] += 1
+    for qa, qb in TRANSICIONES:
+        la, lb = qa.lower(), qb.lower()
+        if p["total_" + la] > 0 and p["total_" + lb] > 0:
+            momentum_by[(qa, qb)][(p.get("status_" + la) or "Inactivo", p.get("status_" + lb) or "Inactivo")] += 1
 
     # Columna vertebral: excluye Mentores y Comentores — se filtra a top 15 en post-procesamiento
     if rol not in ("Mentor", "Comentor"):
         backbone.append(dict(
             nombre=p["nombre_completo"], grupo=g,
             pct=p["pct_total"], racha=p["racha_actual"],
-            pct_q1=p["pct_q1"], pct_q2=p["pct_q2"], pct_q3=p["pct_q3"],
+            pct_q1=p["pct_q1"], pct_q2=p["pct_q2"], pct_q3=p["pct_q3"], pct_q4=p["pct_q4"],
         ))
 
     if p["racha_actual"] <= -4:
@@ -142,10 +147,10 @@ for p in personas:
         nuevos.append(dict(
             nombre=p["nombre_completo"], grupo=g,
             fecha_ingreso=p["fecha_ingreso"],
-            pct_q2=p["pct_q2"],
-            status_q2=p.get("status_q2") or p["status"],
+            pct=p["pct_total"],          # asistencia desde su ingreso (nivel persona)
+            status=p["status"],
             pct_q3=p["pct_q3"],
-            status_q3=p.get("status_q3"),
+            pct_q4=p["pct_q4"],
             at_risk=p["at_risk"],
             racha=p["racha_actual"],
         ))
@@ -164,8 +169,10 @@ for nombre, gr in grupos.items():
     pct_q1 = pct(gr["asist_q1"], gr["total_q1"])
     pct_q2 = pct(gr["asist_q2"], gr["total_q2"])
     pct_q3 = pct(gr["asist_q3"], gr["total_q3"])
+    pct_q4 = pct(gr["asist_q4"], gr["total_q4"])
     delta = round(pct_q2 - pct_q1, 1) if pct_q1 is not None and pct_q2 is not None else None
     delta_q2q3 = round(pct_q3 - pct_q2, 1) if pct_q2 is not None and pct_q3 is not None else None
+    delta_q3q4 = round(pct_q4 - pct_q3, 1) if pct_q3 is not None and pct_q4 is not None else None
     at_risk_pct = pct(gr["at_risk"], gr["miembros"])
     grupos_calc[nombre] = dict(
         tipo=TIPO_NOMBRE.get(gr["tipo"], gr["tipo"]),
@@ -174,8 +181,10 @@ for nombre, gr in grupos.items():
         pct_q1=pct_q1,
         pct_q2=pct_q2,
         pct_q3=pct_q3,
+        pct_q4=pct_q4,
         delta=delta,
         delta_q2q3=delta_q2q3,
+        delta_q3q4=delta_q3q4,
         at_risk=gr["at_risk"],
         at_risk_pct=at_risk_pct,
     )
@@ -201,7 +210,7 @@ backbone = backbone[:15]
 for gname in criticos:
     criticos[gname].sort(key=lambda x: x["racha"])
 
-nuevos.sort(key=lambda x: x["pct_q2"] or 0)
+nuevos.sort(key=lambda x: x["pct"] or 0)
 mentores_alerta.sort(key=lambda x: x["pct"])
 
 roles_sorted = sorted(
@@ -210,40 +219,30 @@ roles_sorted = sorted(
     reverse=True,
 )
 
-mejoras, caidas, estables, total_momentum = momentum_counts(momentum)
-mejoras_q2q3, caidas_q2q3, estables_q2q3, total_momentum_q2q3 = momentum_counts(momentum_q2q3)
-
 # Transición más reciente con datos: se usa para insights y titulares.
-if total_momentum_q2q3 > 0:
-    mr_qa, mr_qb, mr_mej, mr_cai, mr_est, mr_total = "Q2", "Q3", mejoras_q2q3, caidas_q2q3, estables_q2q3, total_momentum_q2q3
-else:
-    mr_qa, mr_qb, mr_mej, mr_cai, mr_est, mr_total = "Q1", "Q2", mejoras, caidas, estables, total_momentum
+mr_qa, mr_qb = next((t for t in reversed(TRANSICIONES) if momentum_counts(momentum_by[t])[3] > 0), TRANSICIONES[0])
+mr_mej, mr_cai, mr_est, mr_total = momentum_counts(momentum_by[(mr_qa, mr_qb)])
 
 # ── Insights clave ────────────────────────────────────────────────────────────
-pct_q1_global = pct(
-    sum(gr["asist_q1"] for gr in grupos.values()),
-    sum(gr["total_q1"] for gr in grupos.values()),
-)
-pct_q2_global = pct(
-    sum(gr["asist_q2"] for gr in grupos.values()),
-    sum(gr["total_q2"] for gr in grupos.values()),
-)
-pct_q3_global = pct(
-    sum(gr["asist_q3"] for gr in grupos.values()),
-    sum(gr["total_q3"] for gr in grupos.values()),
-)
-delta_global = round(pct_q2_global - pct_q1_global, 1) if pct_q1_global and pct_q2_global else None
-delta_global_q2q3 = round(pct_q3_global - pct_q2_global, 1) if pct_q2_global and pct_q3_global else None
+pct_q_global = {
+    q: pct(sum(gr["asist_" + q.lower()] for gr in grupos.values()),
+           sum(gr["total_" + q.lower()] for gr in grupos.values()))
+    for q in QUARTERS
+}
 
-# Delta global más reciente: Q2→Q3 si hay datos de Q3, si no Q1→Q2.
-if delta_global_q2q3 is not None:
-    dg_qa, dg_qb, dg_delta, dg_from, dg_to = "Q2", "Q3", delta_global_q2q3, pct_q2_global, pct_q3_global
-else:
-    dg_qa, dg_qb, dg_delta, dg_from, dg_to = "Q1", "Q2", delta_global, pct_q1_global, pct_q2_global
+# Delta global más reciente con datos en ambos quarters (Q3→Q4, si no Q2→Q3, si no Q1→Q2).
+dg_qa, dg_qb = next((t for t in reversed(TRANSICIONES)
+                     if pct_q_global[t[0]] is not None and pct_q_global[t[1]] is not None), TRANSICIONES[0])
+dg_from, dg_to = pct_q_global[dg_qa], pct_q_global[dg_qb]
+dg_delta = round(dg_to - dg_from, 1) if dg_from is not None and dg_to is not None else None
 
-# Delta de grupo más reciente con datos (Q2→Q3 si aplica, si no Q1→Q2).
-_delta_key = "delta_q2q3" if any(g["delta_q2q3"] is not None for g in grupos_calc.values()) else "delta"
-_delta_qa, _delta_qb = ("Q2", "Q3") if _delta_key == "delta_q2q3" else ("Q1", "Q2")
+# Delta de grupo más reciente con datos en al menos un grupo.
+def _delta_key_of(t):
+    return "delta" if t == ("Q1", "Q2") else f"delta_{t[0].lower()}{t[1].lower()}"
+
+_delta_qa, _delta_qb = next((t for t in reversed(TRANSICIONES)
+                             if any(g[_delta_key_of(t)] is not None for g in grupos_calc.values())), TRANSICIONES[0])
+_delta_key = _delta_key_of((_delta_qa, _delta_qb))
 grupos_con_delta = [(n, g) for n, g in grupos_calc.items() if g[_delta_key] is not None]
 top_mejora = max(grupos_con_delta, key=lambda x: x[1][_delta_key]) if grupos_con_delta else None
 top_caida = min(grupos_con_delta, key=lambda x: x[1][_delta_key]) if grupos_con_delta else None
@@ -263,7 +262,7 @@ if dg_delta is not None:
     else:
         key_insights.append(("neu", f"Asistencia estable entre quarters: {dg_qa} {fp(dg_from)}% → {dg_qb} {fp(dg_to)}% (variación mínima de {dg_delta}%)"))
 
-_delta_pct_col = "pct_q3" if _delta_key == "delta_q2q3" else "pct_q2"
+_delta_pct_col = "pct_" + _delta_qb.lower()
 if top_mejora:
     key_insights.append(("pos", f"Grupo con mayor mejora {_delta_qa}→{_delta_qb}: {top_mejora[0]} (+{top_mejora[1][_delta_key]}%, ahora en {fp(top_mejora[1][_delta_pct_col])}%)"))
 
@@ -297,10 +296,10 @@ if grupos_sorted:
 
 # ── Resumen nuevos ingresos ───────────────────────────────────────────────────
 ni_en_riesgo = [n for n in nuevos if n["at_risk"]]
-ni_buen_arranque = [n for n in nuevos if (n["pct_q2"] or 0) >= 70]
+ni_buen_arranque = [n for n in nuevos if (n["pct"] or 0) >= 70]
 ni_seguimiento = [n for n in nuevos if n["at_risk"] or n["racha"] <= -2]
-ni_medio = [n for n in nuevos if not n["at_risk"] and (n["pct_q2"] or 0) < 70]
-ni_prom_q2 = round(sum(n["pct_q2"] or 0 for n in nuevos) / len(nuevos), 1) if nuevos else 0
+ni_medio = [n for n in nuevos if not n["at_risk"] and (n["pct"] or 0) < 70]
+ni_prom = round(sum(n["pct"] or 0 for n in nuevos) / len(nuevos), 1) if nuevos else 0   # % desde su ingreso
 
 
 # ── Generación Markdown ──────────────────────────────────────────────────────
@@ -332,19 +331,19 @@ def build_md():
 
     # 1. Semáforo de grupos
     a("## 1. Semáforo de Grupos\n")
-    a("| Grupo | Tipo | N | % Global | Q1% | Q2% | Q3% | Δ Q1→Q2 | Δ Q2→Q3 | En Riesgo |")
-    a("|-------|------|---|----------|-----|-----|-----|---------|---------|-----------|")
+    a("| Grupo | Tipo | N | % Global | Q1% | Q2% | Q3% | Q4% | Δ Q1→Q2 | Δ Q2→Q3 | Δ Q3→Q4 | En Riesgo |")
+    a("|-------|------|---|----------|-----|-----|-----|-----|---------|---------|---------|-----------|")
     for nombre, g in grupos_sorted:
         a(f"| {nombre} | {g['tipo']} | {g['miembros']} | {fp(g['pct_global'])}% "
-          f"| {fp(g['pct_q1'])}% | {fp(g['pct_q2'])}% | {fp(g['pct_q3'])}% "
-          f"| {delta_label(g['delta'])} | {delta_label(g['delta_q2q3'])} "
+          f"| {fp(g['pct_q1'])}% | {fp(g['pct_q2'])}% | {fp(g['pct_q3'])}% | {fp(g['pct_q4'])}% "
+          f"| {delta_label(g['delta'])} | {delta_label(g['delta_q2q3'])} | {delta_label(g['delta_q3q4'])} "
           f"| {g['at_risk']} ({fp(g['at_risk_pct'])}%) |")
     a("")
 
     # 2. Momentum entre quarters
     a("## 2. Momentum Individual entre Quarters\n")
     a("_Solo personas con sesiones en ambos quarters de la transición._\n")
-    for qa, qb, mdict in (("Q1", "Q2", momentum), ("Q2", "Q3", momentum_q2q3)):
+    for (qa, qb), mdict in momentum_by.items():
         mej, cai, est, tot = momentum_counts(mdict)
         a(f"### {qa} → {qb}  ({tot} personas)\n")
         if tot == 0:
@@ -378,12 +377,12 @@ def build_md():
 
     # 3. Columna Vertebral
     a("## 3. Columna Vertebral — Top 15 (excluye Mentores y Comentores)\n")
-    a(f"_Las 15 personas con mejor asistencia total del ciclo._\n")
+    a("_Las 15 personas con mejor asistencia total del ciclo._\n")
     if backbone:
-        a("| # | Persona | Grupo | % Total | Q1% | Q2% | Q3% | Racha |")
-        a("|---|---------|-------|---------|-----|-----|-----|-------|")
+        a("| # | Persona | Grupo | % Total | Q1% | Q2% | Q3% | Q4% | Racha |")
+        a("|---|---------|-------|---------|-----|-----|-----|-----|-------|")
         for i, b in enumerate(backbone, 1):
-            a(f"| {i} | {b['nombre']} | {b['grupo']} | {fp(b['pct'])}% | {fp(b['pct_q1'])}% | {fp(b['pct_q2'])}% | {fp(b['pct_q3'])}% | +{b['racha']} |")
+            a(f"| {i} | {b['nombre']} | {b['grupo']} | {fp(b['pct'])}% | {fp(b['pct_q1'])}% | {fp(b['pct_q2'])}% | {fp(b['pct_q3'])}% | {fp(b['pct_q4'])}% | +{b['racha']} |")
     a("")
 
     # 4. Alertas Críticas
@@ -433,28 +432,28 @@ def build_md():
     a("## 8. Nuevos Ingresos (FECHA_INGRESO)\n")
     a(f"_Total: {len(nuevos)} personas con fecha de ingreso registrada._\n")
     if nuevos:
-        a("| Persona | Grupo | Ingreso | Q2% | Status Q2 | Q3% | Status Q3 | En Riesgo | Racha |")
-        a("|---------|-------|---------|-----|-----------|-----|-----------|-----------|-------|")
+        a("| Persona | Grupo | Ingreso | % desde ingreso | Status | Q3% | Q4% | En Riesgo | Racha |")
+        a("|---------|-------|---------|-----------------|--------|-----|-----|-----------|-------|")
         for n in nuevos:
             riesgo = "⚠️ Sí" if n["at_risk"] else "No"
             a(f"| {n['nombre']} | {n['grupo']} | {n['fecha_ingreso']} "
-              f"| {fp(n['pct_q2'])}% | {n['status_q2'] or '—'} "
-              f"| {fp(n['pct_q3'])}% | {n['status_q3'] or '—'} | {riesgo} | {n['racha']} |")
+              f"| {fp(n['pct'])}% | {n['status']} "
+              f"| {fp(n['pct_q3'])}% | {fp(n['pct_q4'])}% | {riesgo} | {n['racha']} |")
         a("")
         a("### Seguimiento Nuevos Ingresos\n")
-        a(f"- **Promedio Q2:** {fp(ni_prom_q2)}% de asistencia desde su ingreso")
+        a(f"- **Promedio desde su ingreso:** {fp(ni_prom)}% de asistencia")
         a(f"- **En riesgo:** {len(ni_en_riesgo)} de {len(nuevos)} ({fp(pct(len(ni_en_riesgo), len(nuevos)))}%)")
-        a(f"- **Buen arranque (Q2 >= 70%):** {len(ni_buen_arranque)} persona(s)")
+        a(f"- **Buen arranque (>= 70% desde su ingreso):** {len(ni_buen_arranque)} persona(s)")
         if ni_buen_arranque:
             a("  " + ", ".join(n["nombre"] for n in ni_buen_arranque))
         a(f"- **Requieren seguimiento** (en riesgo o racha <= -2): {len(ni_seguimiento)} persona(s)")
         if ni_seguimiento:
             for n in ni_seguimiento:
-                a(f"  - {n['nombre']} ({n['grupo']}) — Q2: {fp(n['pct_q2'])}%, racha: {n['racha']}")
-        if len(ni_en_riesgo) == 0 and ni_prom_q2 >= 60:
-            a(f"\n_Diagnóstico: Los nuevos ingresos muestran un arranque sólido. Ninguno está en riesgo y el promedio Q2 de {fp(ni_prom_q2)}% es alentador._")
+                a(f"  - {n['nombre']} ({n['grupo']}) — {fp(n['pct'])}% desde su ingreso, racha: {n['racha']}")
+        if len(ni_en_riesgo) == 0 and ni_prom >= 60:
+            a(f"\n_Diagnóstico: Los nuevos ingresos muestran un arranque sólido. Ninguno está en riesgo y el promedio de {fp(ni_prom)}% desde su ingreso es alentador._")
         elif len(ni_en_riesgo) > len(nuevos) / 2:
-            a(f"\n_Diagnóstico: Más de la mitad de los nuevos ingresos ya están en riesgo. Se recomienda seguimiento pastoral activo en las próximas semanas._")
+            a("\n_Diagnóstico: Más de la mitad de los nuevos ingresos ya están en riesgo. Se recomienda seguimiento pastoral activo en las próximas semanas._")
         else:
             a(f"\n_Diagnóstico: Arranque mixto. {len(ni_buen_arranque)} con buen ritmo, {len(ni_en_riesgo)} en riesgo. Priorizar acompañamiento de quienes aún no se consolidan._")
     a("")
@@ -564,7 +563,7 @@ def build_html():
 
     # ── Sección 1: Semáforo ──
     rows1 = "".join(
-        f"<tr class='hover:bg-slate-50 transition-all duration-200 {row_tint(g['delta_q2q3'] if g['delta_q2q3'] is not None else g['delta'])}'>"
+        f"<tr class='hover:bg-slate-50 transition-all duration-200 {row_tint(g[_delta_key])}'>"
         f"{td(nombre, 'font-medium text-slate-900')}"
         f"{td(g['tipo'])}"
         f"{td(str(g['miembros']), 'text-center')}"
@@ -572,15 +571,17 @@ def build_html():
         f"{td(fp(g['pct_q1'])+'%')}"
         f"{td(fp(g['pct_q2'])+'%')}"
         f"{td(fp(g['pct_q3'])+'%')}"
+        f"{td(fp(g['pct_q4'])+'%')}"
         f"<td class='px-6 py-4'>{delta_badge(g['delta'])}</td>"
         f"<td class='px-6 py-4'>{delta_badge(g['delta_q2q3'])}</td>"
+        f"<td class='px-6 py-4'>{delta_badge(g['delta_q3q4'])}</td>"
         + td(str(g['at_risk']) + " (" + fp(g['at_risk_pct']) + "%)", 'text-center')
         + "</tr>"
         for nombre, g in grupos_sorted
     )
     table1 = (
         f'<div class="overflow-x-auto"><table class="w-full">'
-        f'<thead class="bg-slate-50/75"><tr>{"".join(th(h) for h in ["Grupo","Tipo","N","% Global","Q1%","Q2%","Q3%","Δ Q1→Q2","Δ Q2→Q3","En Riesgo"])}</tr></thead>'
+        f'<thead class="bg-slate-50/75"><tr>{"".join(th(h) for h in ["Grupo","Tipo","N","% Global","Q1%","Q2%","Q3%","Q4%","Δ Q1→Q2","Δ Q2→Q3","Δ Q3→Q4","En Riesgo"])}</tr></thead>'
         f'<tbody class="divide-y divide-slate-100">{rows1}</tbody></table></div>'
     )
     sec1 = section("Semáforo de Grupos", "1", table1)
@@ -620,7 +621,7 @@ def build_html():
         return summary + matrix
 
     sec2 = section("Momentum Individual entre Quarters", "2",
-                   momentum_block("Q1", "Q2", momentum) + momentum_block("Q2", "Q3", momentum_q2q3))
+                   "".join(momentum_block(qa, qb, mdict) for (qa, qb), mdict in momentum_by.items()))
 
     # ── Sección 3: Columna Vertebral ──
     rows3 = "".join(
@@ -631,13 +632,14 @@ def build_html():
         f"<td class='px-6 py-4 text-sm text-slate-600'>{fp(b['pct_q1'])}%</td>"
         f"<td class='px-6 py-4 text-sm text-slate-600'>{fp(b['pct_q2'])}%</td>"
         f"<td class='px-6 py-4 text-sm text-slate-600'>{fp(b['pct_q3'])}%</td>"
+        f"<td class='px-6 py-4 text-sm text-slate-600'>{fp(b['pct_q4'])}%</td>"
         f"<td class='px-6 py-4 text-sm font-semibold text-indigo-600'>+{b['racha']}</td></tr>"
         for i, b in enumerate(backbone, 1)
     )
     table3 = (
         f'<p class="text-xs text-slate-400 mb-4">Top 15 personas (excluyendo Mentores y Comentores)</p>'
         f'<div class="overflow-x-auto"><table class="w-full">'
-        f'<thead class="bg-slate-50/75"><tr>{"".join(th(h) for h in ["#","Persona","Grupo","% Total","Q1%","Q2%","Q3%","Racha"])}</tr></thead>'
+        f'<thead class="bg-slate-50/75"><tr>{"".join(th(h) for h in ["#","Persona","Grupo","% Total","Q1%","Q2%","Q3%","Q4%","Racha"])}</tr></thead>'
         f'<tbody class="divide-y divide-slate-100">{rows3}</tbody></table></div>'
     )
     sec3 = section("Columna Vertebral — Top 15 (excluye Mentores y Comentores)", "3", table3)
@@ -669,7 +671,7 @@ def build_html():
     avg_note = f"<p class='text-xs text-slate-400 mb-4'>Promedio sesiones normales: <span class='font-semibold text-slate-600'>{fp(avg_normal)}%</span></p>"
     table5 = (
         avg_note
-        + f'<div class="overflow-x-auto"><table class="w-full">'
+        + '<div class="overflow-x-auto"><table class="w-full">'
         + f'<thead class="bg-slate-50/75"><tr>{"".join(th(h) for h in ["Fecha","Evento","% Asistencia","Δ vs Normal","Presentes"])}</tr></thead>'
         + f'<tbody class="divide-y divide-slate-100">{rows5}</tbody></table></div>'
     )
@@ -714,10 +716,10 @@ def build_html():
     # ── Sección 8: Nuevos Ingresos ──
     rows8 = "".join(
         f"<tr class='hover:bg-slate-50 transition-colors'>{td(n['nombre'],'font-medium')}{td(n['grupo'])}{td(n['fecha_ingreso'])}"
-        f"<td class='px-6 py-4 text-sm font-bold text-slate-700'>{fp(n['pct_q2'])}%</td>"
-        f"{td(n['status_q2'] or '—')}"
-        f"<td class='px-6 py-4 text-sm font-bold text-slate-700'>{fp(n['pct_q3'])}%</td>"
-        f"{td(n['status_q3'] or '—')}"
+        f"<td class='px-6 py-4 text-sm font-bold text-slate-700'>{fp(n['pct'])}%</td>"
+        f"{td(n['status'])}"
+        f"{td(fp(n['pct_q3'])+'%')}"
+        f"{td(fp(n['pct_q4'])+'%')}"
         + risk_cell(n['at_risk'])
         + racha_cell(n['racha'])
         + "</tr>"
@@ -726,56 +728,40 @@ def build_html():
     table8 = (
         f'<p class="text-xs text-slate-400 mb-4">Total: {len(nuevos)} personas</p>'
         f'<div class="overflow-x-auto"><table class="w-full">'
-        f'<thead class="bg-slate-50/75"><tr>{"".join(th(h) for h in ["Persona","Grupo","Ingreso","Q2%","Status Q2","Q3%","Status Q3","En Riesgo","Racha"])}</tr></thead>'
+        f'<thead class="bg-slate-50/75"><tr>{"".join(th(h) for h in ["Persona","Grupo","Ingreso","% desde ingreso","Status","Q3%","Q4%","En Riesgo","Racha"])}</tr></thead>'
         f'<tbody class="divide-y divide-slate-100">{rows8}</tbody></table></div>'
     )
 
     # Resumen nuevos ingresos
-    if ni_buen_arranque:
-        buenos_str = ", ".join(n["nombre"] for n in ni_buen_arranque)
-    else:
-        buenos_str = "Ninguno aún supera el 70%"
-
-    if ni_seguimiento:
-        seg_items = "".join(
-            f"<li class='text-sm text-slate-600 flex items-start gap-2'>"
-            f"<span class='mt-1.5 w-2 h-2 rounded-full bg-rose-400 flex-shrink-0'></span>"
-            f"{n['nombre']} ({n['grupo']}) — Q2: {fp(n['pct_q2'])}%, racha {n['racha']}</li>"
-            for n in ni_seguimiento
-        )
-        seg_block = f"<ul class='mt-2 space-y-1'>{seg_items}</ul>"
-    else:
-        seg_block = "<p class='text-sm text-slate-400 mt-1'>Ninguno</p>"
-
-    if len(ni_en_riesgo) == 0 and ni_prom_q2 >= 60:
-        diagnostico = f"Los nuevos ingresos muestran un arranque sólido. Ninguno está en riesgo y el promedio Q2 de {fp(ni_prom_q2)}% es alentador."
+    if len(ni_en_riesgo) == 0 and ni_prom >= 60:
+        diagnostico = f"Los nuevos ingresos muestran un arranque sólido. Ninguno está en riesgo y el promedio de {fp(ni_prom)}% desde su ingreso es alentador."
         diag_cls = "bg-emerald-50 border-emerald-100 text-emerald-800"
     elif ni_seguimiento and len(ni_en_riesgo) > len(nuevos) / 2:
-        diagnostico = f"Más de la mitad de los nuevos ingresos ya están en riesgo. Se recomienda seguimiento pastoral activo en las próximas semanas."
+        diagnostico = "Más de la mitad de los nuevos ingresos ya están en riesgo. Se recomienda seguimiento pastoral activo en las próximas semanas."
         diag_cls = "bg-rose-50 border-rose-100 text-rose-800"
     else:
         diagnostico = f"Arranque mixto: {len(ni_buen_arranque)} con buen ritmo, {len(ni_en_riesgo)} en riesgo. Priorizar acompañamiento de quienes aún no se consolidan."
         diag_cls = "bg-amber-50 border-amber-100 text-amber-800"
 
-    # Cards de En Riesgo: cada persona con su Q2% y racha
+    # Cards de En Riesgo: cada persona con su % desde el ingreso y racha
     riesgo_cards = "".join(
         f'<div class="bg-rose-50 border border-rose-100 rounded-xl px-3 py-3">'
         f'<p class="text-xs font-semibold text-rose-800 leading-tight">{n["nombre"]}</p>'
         f'<p class="text-xs text-rose-500 mt-0.5">{n["grupo"]}</p>'
         f'<div class="flex gap-2 mt-2">'
-        f'<span class="text-xs bg-rose-100 text-rose-700 rounded px-1.5 py-0.5 font-medium">Q2: {fp(n["pct_q2"])}%</span>'
+        f'<span class="text-xs bg-rose-100 text-rose-700 rounded px-1.5 py-0.5 font-medium">{fp(n["pct"])}%</span>'
         f'<span class="text-xs bg-rose-100 text-rose-700 rounded px-1.5 py-0.5 font-medium">racha {n["racha"]}</span>'
         f'</div></div>'
         for n in ni_en_riesgo
     ) if ni_en_riesgo else "<p class='text-sm text-slate-400'>Ninguno en riesgo</p>"
 
-    # Cards de Buen Arranque: cada persona con su Q2%
+    # Cards de Buen Arranque: cada persona con su % desde el ingreso
     arranque_cards = "".join(
         f'<div class="bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-3">'
         f'<p class="text-xs font-semibold text-emerald-800 leading-tight">{n["nombre"]}</p>'
         f'<p class="text-xs text-emerald-500 mt-0.5">{n["grupo"]}</p>'
         f'<div class="flex gap-2 mt-2">'
-        f'<span class="text-xs bg-emerald-100 text-emerald-700 rounded px-1.5 py-0.5 font-medium">Q2: {fp(n["pct_q2"])}%</span>'
+        f'<span class="text-xs bg-emerald-100 text-emerald-700 rounded px-1.5 py-0.5 font-medium">{fp(n["pct"])}%</span>'
         f'<span class="text-xs bg-emerald-100 text-emerald-700 rounded px-1.5 py-0.5 font-medium">racha +{n["racha"]}</span>'
         f'</div></div>'
         for n in ni_buen_arranque
@@ -792,8 +778,8 @@ def build_html():
       <p class="text-2xl font-bold text-slate-900">{len(nuevos)}</p>
     </div>
     <div class="bg-white rounded-xl px-4 py-3 text-center shadow-sm">
-      <p class="text-xs text-slate-400 uppercase tracking-wider mb-1">Prom. Q2</p>
-      <p class="text-2xl font-bold text-slate-900">{fp(ni_prom_q2)}%</p>
+      <p class="text-xs text-slate-400 uppercase tracking-wider mb-1">Prom. desde ingreso</p>
+      <p class="text-2xl font-bold text-slate-900">{fp(ni_prom)}%</p>
     </div>
     <div class="bg-rose-50 border border-rose-100 rounded-xl px-4 py-3 text-center">
       <p class="text-xs text-rose-400 uppercase tracking-wider mb-1">En Riesgo</p>
@@ -803,7 +789,7 @@ def build_html():
     <div class="bg-emerald-50 border border-emerald-100 rounded-xl px-4 py-3 text-center">
       <p class="text-xs text-emerald-500 uppercase tracking-wider mb-1">Buen Arranque</p>
       <p class="text-2xl font-bold text-emerald-600">{len(ni_buen_arranque)}</p>
-      <p class="text-xs text-emerald-400 mt-0.5">Q2 &ge; 70%</p>
+      <p class="text-xs text-emerald-400 mt-0.5">&ge; 70% desde ingreso</p>
     </div>
   </div>
 
@@ -822,7 +808,7 @@ def build_html():
   <!-- En proceso (ni en riesgo ni buen arranque) -->
   <div class="mb-5">
     <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">En proceso ({len(ni_medio)})</p>
-    <ul class="space-y-1">{"".join(f'<li class="flex items-center gap-2 text-sm text-slate-600"><span class="w-2 h-2 rounded-full bg-slate-400 flex-shrink-0"></span>{n["nombre"]} ({n["grupo"]}) — Q2: {fp(n["pct_q2"])}%, racha {n["racha"]}</li>' for n in ni_medio) if ni_medio else "<li class='text-sm text-slate-400'>Ninguno</li>"}</ul>
+    <ul class="space-y-1">{"".join(f'<li class="flex items-center gap-2 text-sm text-slate-600"><span class="w-2 h-2 rounded-full bg-slate-400 flex-shrink-0"></span>{n["nombre"]} ({n["grupo"]}) — {fp(n["pct"])}% desde ingreso, racha {n["racha"]}</li>' for n in ni_medio) if ni_medio else "<li class='text-sm text-slate-400'>Ninguno</li>"}</ul>
   </div>
 
   <!-- Diagnóstico -->
@@ -875,8 +861,9 @@ OUT_HTML.write_text(html_content, encoding="utf-8")
 
 md_kb = OUT_MD.stat().st_size / 1024
 html_kb = OUT_HTML.stat().st_size / 1024
-print(f"[OK] insights generado en subagents/sub_insights/reports/")
+print("[OK] insights generado en subagents/sub_insights/reports/")
 print(f"     {OUT_MD.name}: {md_kb:.1f} KB")
 print(f"     {OUT_HTML.name}: {html_kb:.1f} KB")
 
-os.startfile(str(OUT_HTML))
+if not os.getenv("CI"):
+    os.startfile(str(OUT_HTML))

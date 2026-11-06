@@ -130,7 +130,7 @@ Cualquier otro valor (o vacío) = no es miembro formal.
 **Regla de arquitectura (desde 2026-07):** el pipeline calcula tres cosas de forma independiente, cada una con sus propias reglas:
 
 1. **Nivel persona** (`total_sesiones`, `pct_total`, `historial`, `at_risk`, `racha_actual`, status): se basa **únicamente** en su propia `FECHA_INGRESO` (si la tiene) + `EXCEPTIONS` + regla de asistencia de grupos `ATTENDANCE_DRIVEN_GROUPS` (sección 12). **No aplica `GROUP_START_DATES`.** Refleja la trayectoria real de la persona, sin importar cómo se llama o cuándo se creó su grupo actual.
-2. **Nivel grupo** (tabla de grupos: `sesiones_totales`, `pct_asistencia`, `pct_q1`, `pct_q2`, `pct_q3`): sí aplica `GROUP_START_DATES` (además de `EXCEPTIONS` y la regla de asistencia). Se calcula de forma independiente — **ya no es la suma de los totales de cada persona** — usando el flag interno `aplica_grupo` por sesión, que combina la fecha de inicio del grupo con la `FECHA_INGRESO` de cada miembro (lo que sea más tardío).
+2. **Nivel grupo** (tabla de grupos: `sesiones_totales`, `pct_asistencia`, `pct_q1`…`pct_q4`): sí aplica `GROUP_START_DATES` (además de `EXCEPTIONS` y la regla de asistencia). Se calcula de forma independiente — **ya no es la suma de los totales de cada persona** — usando el flag interno `aplica_grupo` por sesión, que combina la fecha de inicio del grupo con la `FECHA_INGRESO` de cada miembro (lo que sea más tardío).
 3. **Nivel global** (evolución semanal, % general): se calcula bottom-up desde las personas (nivel 1), por lo tanto tampoco aplica `GROUP_START_DATES`.
 
 **Por qué:** el Sheet solo tiene la columna `GRUPO_ACTUAL` (el grupo de hoy), no un histórico de grupo por fecha. Si una persona lleva tiempo en J1 pero fue reasignada a un grupo recién creado o renombrado, aplicarle la fecha de inicio del grupo le borraría asistencia real de su historial. Separar los tres niveles evita ese problema sin perder la utilidad de `GROUP_START_DATES` para medir el desempeño del grupo desde que existe. Cuando se agregue una columna de grupo histórico por fecha, se podrá revisar esta lógica.
@@ -149,8 +149,7 @@ Algunos grupos fueron creados durante el ciclo y no existían desde el inicio. E
 **Importante:** la clave en `GROUP_START_DATES` debe coincidir con el `GRUPO_ACTUAL` vigente en el Sheet. Si un grupo cambia de nombre (como pasó con NEW BETTA → OMEGA), hay que actualizar la clave aquí Y en el código, o la regla deja de aplicarse silenciosamente (sin error).
 
 Aplicación en el código:
-- `group_af_map` se computa antes del loop de filas
-- `aplica_grupo` (por sesión) combina `group_af_map` con la `FECHA_INGRESO` de cada persona → usado para agregar las métricas de grupo
+- `aplica_grupo` (por sesión, se marca en un post-proceso) combina `GROUP_START_DATES` con la `FECHA_INGRESO` de cada persona → usado para agregar las métricas de grupo
 - `sesiones_por_grupo` (con `GROUP_START_DATES`) → `sesiones_totales` / `sesiones_qN` en la tabla de grupos
 - `sesiones_por_grupo_persona` (sin `GROUP_START_DATES`) → historial y denominador de cada persona
 - ambos filtran por `session_valid_for_group()` = `session_applies_to_group()` (EXCEPTIONS) **y** `group_had_session()` (regla de asistencia, sección 12)
