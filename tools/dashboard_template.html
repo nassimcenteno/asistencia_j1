@@ -972,12 +972,14 @@ function renderChartEvolucion() {
         : e.evento ? { seriesIndex: 0, dataPointIndex: i, fillColor: WRN, strokeColor: SURF, size: 7 } : null
       ).filter(Boolean)
     },
+    // Etiquetas en entero: con ~34 semanas hay ~34px por punto y "41.4%" se montaba con la vecina (el 17/10
+    // quedaba ilegible); "41%" cabe. El decimal sigue en el tooltip.
     dataLabels: {
       enabled: true,
-      formatter: v => v + '%',
+      formatter: v => Math.round(v) + '%',
       style: { fontSize:'11px', fontWeight:700, colors:[ACC] },
       background: { enabled:false },
-      offsetY: -6
+      offsetY: -10
     },
     fill: { type:'gradient', gradient:{ type:'vertical', shadeIntensity:0, inverseColors:false, opacityFrom:0.4, opacityTo:0.02, stops:[0,95,100] } },
     stroke: { curve:'smooth', width:2.5 },

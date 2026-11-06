@@ -83,7 +83,6 @@ Aparecen como punto naranja en el gráfico de evolución del dashboard.
 | **15/08/2026** | J-Fest |
 | **05/09/2026** | Alaba |
 | **17/10/2026** | El Viaje |
-| **24/10/2026** | Reencuentro - El Viaje |
 
 ---
 
@@ -242,3 +241,4 @@ En el gráfico de evolución semanal del Resumen, una semana con **25 participan
 | 2026-11-06 | **GDC RHO y GDC MERCY** agregados a `GROUP_START_DATES` (17/10/2026, solo nivel grupo, igual que LAMBDA/OMEGA; ambos quedan en proyecto J1). **Excepción 31/10:** GDA GAMMA no tuvo sesión. **Eventos:** 17/10 "El Viaje" y 24/10 "Reencuentro - El Viaje". `process_data.py` avisa (solo conteo) de personas con asistencias previas a su `FECHA_INGRESO`. |
 | 2026-11-06 (2) | **Q4 desde el 17/10/2026** (Q3 pasa a 01/08–16/10): `QUARTERS`/`get_quarter()` con 4 ramas y campos `*_q4` en persona y grupo. Dashboard: chip Q4, columna Q4% en Personas, 4ª serie en la comparativa por grupo, 5 tarjetas en el modal de persona y transiciones de la matriz Q1→Q2 / Q2→Q3 / Q3→Q4 / Q1→Q4. **Toggle Con / Sin viajeros** (solo visible cuando Betta es el único proyecto): excluye a GDC BETTA VIAJEROS de todo el dashboard (§14). Rediseño de la barra de filtros (control segmentado con puntos de color, contadores y pastilla deslizante). `sub_insights/analyze.py` sigue en Q1–Q3 (no incorpora Q4 todavía). |
 | 2026-11-06 (3) | **Semanas parciales (≤25 participantes)** excluidas de las tarjetas de resumen de la evolución semanal y con punto gris (§15). Selector de transición de la matriz de status con las 6 combinaciones de quarters. Se revirtió el rediseño de header/filtros a la versión anterior (pestañas arriba, filtros debajo). |
+| 2026-11-06 (4) | El 24/10 **deja de ser evento** (era "Reencuentro - El Viaje"): queda como sesión normal. Solo el 17/10 ("El Viaje") sigue como evento de Q4. Gráfico de evolución semanal: etiquetas de % en entero (con ~34 semanas el decimal se montaba con la etiqueta vecina y el % del 17/10 quedaba ilegible); el decimal sigue en el tooltip. |

@@ -54,7 +54,6 @@ EVENTS = {
     "2026-08-15": "J-Fest",
     "2026-09-05": "Alaba",
     "2026-10-17": "El Viaje",
-    "2026-10-24": "Reencuentro - El Viaje",
 }
 
 GROUP_TYPES = {
