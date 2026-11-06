@@ -24,6 +24,8 @@ EXCEPTIONS = {
     "2026-07-04": {"excluir": ["GDC LAMBDA", "GDC SIGMA"]},
     # 3/10: solo GDC BETTA VIAJEROS tuvo sesion
     "2026-10-03": {"todos_menos": ["GDC BETTA VIAJEROS"]},
+    # 31/10: GDA GAMMA no tuvo sesion
+    "2026-10-31": {"excluir": ["GDA GAMMA"]},
 }
 
 # Proyecto Betta: estos grupos forman el "Proyecto Betta"; todo el resto es J1.
@@ -51,6 +53,8 @@ EVENTS = {
     "2026-07-18": "Reencuentro EJEC",
     "2026-08-15": "J-Fest",
     "2026-09-05": "Alaba",
+    "2026-10-17": "El Viaje",
+    "2026-10-24": "Reencuentro - El Viaje",
 }
 
 GROUP_TYPES = {
@@ -63,6 +67,8 @@ GROUP_TYPES = {
 GROUP_START_DATES: dict[str, date] = {
     "GDC LAMBDA": date(2026, 5, 16),
     "GDC OMEGA": date(2026, 5, 16),
+    "GDC RHO": date(2026, 10, 17),
+    "GDC MERCY": date(2026, 10, 17),
 }
 
 QUARTERS = ["Q1", "Q2", "Q3"]
@@ -241,6 +247,18 @@ def main():
             "evento": EVENTS.get(session_date.isoformat()),
             "asistio": asistio,
         })
+
+    # Aviso: asistencias anteriores a la FECHA_INGRESO de la persona. Esas asistencias NO cuentan
+    # (regla 13), asi que casi siempre es un error de captura en el Sheet (ej. fecha futura).
+    # Solo se imprime el conteo: los logs de Actions pueden ser publicos y no deben llevar nombres.
+    n_ingreso_sospechoso = sum(
+        1 for p in personas.values()
+        if p.get("active_from") and any(
+            s["asistio"] and date.fromisoformat(s["fecha"]) < p["active_from"] for s in p["sesiones_raw"])
+    )
+    if n_ingreso_sospechoso:
+        print(f"[AVISO] {n_ingreso_sospechoso} personas tienen asistencias previas a su FECHA_INGRESO "
+              f"(no cuentan; revisar esa columna en el Sheet).")
 
     # ---------------------------------------------------------------------------
     # Validez de cada sesion por grupo (necesita el mapa de asistencia completo)

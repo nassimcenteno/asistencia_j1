@@ -53,8 +53,8 @@ Al agregar una nueva excepción: actualizar aquí Y en `EXCEPTIONS` en `process_
 |---|---|
 | **11/04/2026** | SOLO tuvieron sesión: GDC BETTA, GDC BETTA VIAJEROS, GDC SIGMA. El resto NO cuenta esta fecha. |
 | **04/07/2026** | GDC LAMBDA y GDC SIGMA **no** tuvieron sesión (por acuerdo) — excluir de su denominador. |
-
 | **03/10/2026** | SOLO tuvo sesión GDC BETTA VIAJEROS. El resto NO cuenta esta fecha. |
+| **31/10/2026** | GDA GAMMA **no** tuvo sesión — excluir de su denominador. |
 
 Nota 03/10: BETTA VIAJEROS además se rige por la regla de asistencia (§12), así que mientras el Sheet no tenga ningún asistente cargado para esa fecha, la fecha queda fuera para todos (no hay denominador) y recién aparece cuando se cargue su asistencia. Las fechas que no aplican a nadie (`total_aplica = 0`) tampoco se emiten en `evolucion` (no se grafica un 0% falso).
 
@@ -81,6 +81,8 @@ Aparecen como punto naranja en el gráfico de evolución del dashboard.
 | **18/07/2026** | Reencuentro EJEC |
 | **15/08/2026** | J-Fest |
 | **05/09/2026** | Alaba |
+| **17/10/2026** | El Viaje |
+| **24/10/2026** | Reencuentro - El Viaje |
 
 ---
 
@@ -141,6 +143,8 @@ Algunos grupos fueron creados durante el ciclo y no existían desde el inicio. E
 |---|---|---|
 | GDC LAMBDA | 16/05/2026 | 16/05/2026 |
 | GDC OMEGA (antes "GDC NEW BETTA") | 16/05/2026 | 16/05/2026 |
+| GDC RHO | 17/10/2026 | 17/10/2026 |
+| GDC MERCY | 17/10/2026 | 17/10/2026 |
 
 **Importante:** la clave en `GROUP_START_DATES` debe coincidir con el `GRUPO_ACTUAL` vigente en el Sheet. Si un grupo cambia de nombre (como pasó con NEW BETTA → OMEGA), hay que actualizar la clave aquí Y en el código, o la regla deja de aplicarse silenciosamente (sin error).
 
@@ -186,6 +190,8 @@ Si una persona tiene la columna `FECHA_INGRESO` con un valor, sus sesiones **sol
 
 Al agregar personas nuevas con FECHA_INGRESO: no requiere cambio de código. El pipeline lo detecta automáticamente desde la columna del Sheet.
 
+**Cuidado — por qué el dashboard puede mostrar menos asistentes/denominador que el Excel:** además de los excluidos por esta regla, el dashboard no cuenta (a) personas sin `GRUPO_ACTUAL` (§8), (b) asistencias de grupos en fechas de excepción (§4) y (c) fechas sin sesión de BETTA/BETTA VIAJEROS (§12). Una `FECHA_INGRESO` mal capturada (p. ej. una fecha futura, o posterior a asistencias reales) borra todo el historial anterior de esa persona. `process_data.py` imprime un aviso con el **conteo** (sin nombres, los logs de Actions pueden ser públicos) de personas con asistencias previas a su `FECHA_INGRESO`.
+
 ---
 
 ## 14. Proyectos (J1 / Proyecto Betta) — solo presentación
@@ -226,3 +232,4 @@ El dashboard tiene un toggle **Proyecto** (J1 / Betta, combinables, mínimo 1; d
 | 2026-09-10 (3) | **Filtro de período local en los pop-ups.** El modal de persona y el de grupo tienen su propia fila de chips Q1/Q2/Q3 (`modalQBar()`), independiente del filtro global, que arranca copiando el estado global al abrir. Persona: recalcula la tarjeta de selección (4ª, con outline morado, label = quarters elegidos, ej. "Q2+Q3"), filtra el historial y ajusta el mini-chart. Grupo: recalcula las tarjetas de status, el "N sesiones", el chart de evolución y el ranking de menor asistencia. `openDrilldown`/`openGroupDrilldown` ahora solo hacen setup; el cuerpo lo arman `renderPersonModal()`/`renderGroupModal()` para poder re-renderizar al togglear. Eventos nuevos: **J-Fest (15/08)** y **Alaba (05/09)**. Rediseño: el chart de evolución del modal de grupo usa el estilo del de evolución total (área con gradiente, marcadores, línea de promedio); el mini-chart Q por persona perdió el eje Y. |
 | 2026-10-08 (2) | **Parche en `fetch_sheets_data.py`:** si `02. Imp_Asistencia` tiene una asistencia (fecha+DNI) que `03. Asistencia_Reporting` dejó en 0 (pasa cuando `KEY_FECHA_DNI` de 02 quedó vacía por fórmula sin arrastrar) se corrige al vuelo y se avisa por consola. Detectó 16 filas: 3 de BETTA VIAJEROS del 03/10 y 13 del 26/09 (LAMBDA 7, ETA 6). **Modal de grupo:** promedio de evolución ponderado (Σasistentes/Σposibles), % semanales con 1 decimal, aviso en tooltip de miembros sin ingreso, margen superior en el chart. |
 | 2026-10-08 | **Umbrales de status alineados al código:** Fiel >74%, Activo 41–74%, Inconstante 1–40% (la doc decía 80/51/50 y `pctColor` del dashboard usaba 80/51). **Excepción 03/10:** solo GDC BETTA VIAJEROS tuvo sesión. **Toggle de proyecto J1 / Betta** (§14). `evolucion` ya no emite fechas con `total_aplica = 0`. |
+| 2026-11-06 | **GDC RHO y GDC MERCY** agregados a `GROUP_START_DATES` (17/10/2026, solo nivel grupo, igual que LAMBDA/OMEGA; ambos quedan en proyecto J1). **Excepción 31/10:** GDA GAMMA no tuvo sesión. **Eventos:** 17/10 "El Viaje" y 24/10 "Reencuentro - El Viaje". `process_data.py` avisa (solo conteo) de personas con asistencias previas a su `FECHA_INGRESO`. |
