@@ -7,17 +7,18 @@ Población = personas del maestro vigente con GRUPO_ACTUAL (sin grupo actual no 
 import datetime
 from collections import Counter, defaultdict
 
+from asistencia_modelo import ORIGEN_MENTORIA
+
 
 def _historial(R, fechas, asistidas, acreditadas):
     return [{"fecha": d.isoformat(), "asistio": d in asistidas, "acreditada": d in acreditadas, "quarter": R.quarter(d), "evento": R.eventos.get(d.isoformat())} for d in fechas]
 
 
-def calcular(R, alias, personas_maestro, registros, asistentes, hasta=None, generado=None, meses_acreditados=None):
+def calcular(R, alias, personas_maestro, registros, asistentes, hasta=None, generado=None):
     """`personas_maestro`: filas del maestro vigente (dicts con DNI, NOM_COMPLETO, GRUPO_ACTUAL, TIPO_GRUPO, ROL_ACTUAL, TIPO_MIEMBRO, FECHA_INGRESO).
     `registros`/`asistentes`: tablas del Fact (dicts; fechas ISO). `hasta`: ignora sesiones posteriores (para comparar con una corrida vieja).
-    `meses_acreditados`: {dni: {'AAAA-MM'}} meses en que la persona tuvo el tipo que cuenta como asistencia (8. Mentores, ver asistencia_carga.meses_acreditados):
-    toda sesión de su grupo actual en esos meses le aplica y cuenta como asistida. No crea sesiones: si hubo reunión se decide solo con asistencia real."""
-    meses_acreditados = meses_acreditados or {}
+    Los registros con origen = mentoria (ver asistencia_mentoria) cuentan como asistidos en las sesiones válidas del grupo actual, pero no crean sesiones:
+    si hubo reunión se decide solo con asistencia real."""
     # --- población y asistencia efectiva ---
     poblacion = {}
     for x in personas_maestro:
@@ -28,18 +29,18 @@ def calcular(R, alias, personas_maestro, registros, asistentes, hasta=None, gene
             raise ValueError(f"Grupo del maestro que no está en la tabla grupos: {x['GRUPO_ACTUAL']!r}")
         poblacion[str(x["DNI"])] = {"m": x, "gid": gid}
 
-    fecha_de = {}
+    fecha_de, fecha_mentoria = {}, {}  # registro -> sábado (asistencia real · mentoría)
     for r in registros:
         if r["vigente"] in (1, "1"):
             d = datetime.date.fromisoformat(r["sabado"])
             if hasta is None or d <= hasta:
-                fecha_de[r["registro_id"]] = d
+                (fecha_mentoria if r.get("origen") == ORIGEN_MENTORIA else fecha_de)[r["registro_id"]] = d
     todas = sorted(set(fecha_de.values()))
-    asistio = defaultdict(set)  # dni -> fechas de sesión asistidas (cualquier fecha)
+    asistio, por_mentoria = defaultdict(set), defaultdict(set)  # dni -> fechas de sesión asistidas (cualquier fecha) · fechas que cuentan por mentoría
     for a in asistentes:
-        d = fecha_de.get(a["registro_id"])
-        if d is not None:
-            asistio[str(a["dni"])].add(d)
+        for fechas_reg, destino in ((fecha_de, asistio), (fecha_mentoria, por_mentoria)):
+            if a["registro_id"] in fechas_reg:
+                destino[str(a["dni"])].add(fechas_reg[a["registro_id"]])
 
     asist_gf = Counter()  # (grupo_id, fecha) -> personas del grupo actual que asistieron DE VERDAD (lo acreditado no cuenta para saber si hubo reunión)
     for dni, p in poblacion.items():
@@ -56,8 +57,7 @@ def calcular(R, alias, personas_maestro, registros, asistentes, hasta=None, gene
         m, gid = p["m"], p["gid"]
         nom_grupo = R.grupos[gid]["nombre"]
         af = m.get("FECHA_INGRESO")
-        reales, meses = asistio.get(dni, set()), meses_acreditados.get(dni, ())
-        mentoria = {d for d in ses_persona[gid] if d.strftime("%Y-%m") in meses}
+        reales, mentoria = asistio.get(dni, set()), por_mentoria.get(dni, set()) & set(ses_persona[gid])
         asistidas, acreditadas = reales | mentoria, mentoria - reales
         fechas = [d for d in ses_persona[gid] if af is None or d >= af or d in mentoria]
         fechas_g = [d for d in ses_grupo[gid] if af is None or d >= af or d in mentoria]
@@ -155,4 +155,4 @@ def calcular(R, alias, personas_maestro, registros, asistentes, hasta=None, gene
     return {"generated_at": generado or datetime.datetime.now().isoformat(),
             "kpis": {"total_personas": len(plist), "pct_asistencia_global": pct_global, "status_dist": dict(sd), "total_at_risk": len(en_riesgo)},
             "personas": sorted(plist, key=lambda x: x["pct_total"], reverse=True), "grupos": grupos, "tipos": tipos, "evolucion": evolucion,
-            "at_risk": en_riesgo, "eventos": R.eventos}
+            "at_risk": en_riesgo, "eventos": R.eventos, "sesiones_validas": {g: [d.isoformat() for d in ds] for g, ds in ses_persona.items()}}

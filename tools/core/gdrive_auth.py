@@ -1,11 +1,11 @@
-"""Autenticación del Action: cuenta de servicio de solo lectura (secreto GOOGLE_CREDENTIALS). Reemplaza al OAuth interactivo del repo de trabajo."""
+"""Autenticación del Action: cuenta de servicio (secreto GOOGLE_CREDENTIALS). Reemplaza al OAuth interactivo del repo de trabajo."""
 import json
 import os
 
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 
-SCOPES = ["https://www.googleapis.com/auth/drive.readonly", "https://www.googleapis.com/auth/spreadsheets.readonly"]
+SCOPES = ["https://www.googleapis.com/auth/drive.readonly", "https://www.googleapis.com/auth/spreadsheets"]  # escribe solo donde la cuenta sea editora (el Fact)
 
 
 def get_services():

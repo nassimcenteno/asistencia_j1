@@ -83,7 +83,7 @@ def main():
     R, res, data, c = preparar(T)
     out = escribir(data, a.salida)
     print(f"[OK] {out} | personas {len(data['personas'])} | grupos {len(data['grupos'])} | sesiones {len(data['fechas'])} | maestro {data['params']['maestro']} | {out.stat().st_size // 1024} KB")
-    print(f"[INFO] mentoría: {len(c['acreditados'])} personas con meses en '{c['R'].tipo_acreditado}' dentro del ciclo")
+    print(f"[INFO] mentoría: {sum(map(len, c['mentoria'].values()))} asistencias en {len(c['mentoria'])} sábados")
     if c["sanados"]["dnis"]:
         print(f"[INFO] {c['sanados']['asistencias']} asistencias de {c['sanados']['dnis']} DNI cambiados en el maestro se llevaron al DNI actual de la persona")
     if c["huerfanos"]["asistencias"]:

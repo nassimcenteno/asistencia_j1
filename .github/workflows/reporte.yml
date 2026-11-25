@@ -34,6 +34,9 @@ jobs:
           python-version: "3.11"
           cache: pip
       - run: pip install -r requirements.txt
+      - name: Registrar en el Fact la mentoria (8. Mentores)
+        continue-on-error: true               # si no puede escribir, el dashboard igual aplica la regla
+        run: python tools/asistencia/asistencia_mentoria.py --ejecutar
       - name: Generar el dashboard (los logs solo muestran conteos)
         run: python generador/generar_dashboard.py --fact --salida site/index.html
       - if: github.event_name == 'schedule' || inputs.publicar

@@ -13,6 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "maestros"))
 from maestros_formato import norm  # noqa: E402
 
 EPOCA_SHEETS = datetime.date(1899, 12, 30)
+ORIGEN_MENTORIA = "mentoria"  # valor de registro.origen de las asistencias que cuentan por la regla de mentoría (asistencia_mentoria)
 
 
 def serial_a_fecha(n):
