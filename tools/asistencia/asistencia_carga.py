@@ -12,12 +12,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 for p in ("tools/core", "tools/maestros", "tools/asistencia"):
     sys.path.insert(0, str(ROOT / p))
-from maestros_drive import meses, vigente, cargar, cargar_todos, servicios, reint  # noqa: E402
+from maestros_drive import vigente, cargar, cargar_todos, servicios, reint  # noqa: E402
 from asistencia_modelo import leer_tabla, Alias  # noqa: E402
 from asistencia_reglas import Reglas  # noqa: E402
 from asistencia_motor import calcular  # noqa: E402
 from asistencia_dni import sanar, huerfanos  # noqa: E402
-import asistencia_mentoria as mentoria  # noqa: E402
 
 TABLAS = ("registro", "asistente", "grupos", "calendario", "parametros")
 
@@ -45,8 +44,8 @@ def reglas_y_alias(T):
 def calcular_hoy(T, hoy=None):
     """Motor con el maestro vigente (grupos de hoy hacia atrás). Devuelve dict: R, res (sin la semana en curso), full (con ella),
     en_curso (su fila de evolución o None), maestro (mes del maestro usado), sanados (DNI de asistencia llevados al DNI actual de la persona)
-    y huerfanos (asistencias cuyo DNI no está en el maestro ni se pudo resolver: no se cuentan y se avisa), ambos como {dnis, asistencias},
-    y mentoria ({sábado: dnis} que cuentan como asistidos por la regla de mentoría: se aplica siempre, esté o no escrita ya en el Fact)."""
+    y huerfanos (asistencias cuyo DNI no está en el maestro ni se pudo resolver: no se cuentan y se avisa), ambos como {dnis, asistencias}.
+    La mentoría ya viene escrita en el Fact (registros con origen = mentoria): aquí no se calcula (ver asistencia_mentoria.py)."""
     R, alias = reglas_y_alias(T)
     maestro_ym, _ = vigente()
     personas = cargar(maestro_ym)
@@ -58,10 +57,7 @@ def calcular_hoy(T, hoy=None):
     resultado = {"R": R, "maestro": maestro_ym,
                  "sanados": {"dnis": len(mapa), "asistencias": sum(1 for a in original if str(a["dni"]) in mapa)},
                  "huerfanos": {"dnis": len({str(a["dni"]) for a in sin}), "asistencias": len(sin)}}
-    ciclo = [r["sabado"][:7] for r in mentoria.sin_mentoria(T["registro"])]
-    historial = {ym: cargar(ym) for ym in meses() if min(ciclo) <= ym <= max(ciclo)} if R.tipo_acreditado else {}
-    resultado["mentoria"] = mentoria.asistencias(R, alias, personas, T["registro"], asistentes, historial)
-    registros, asistentes = mentoria.incorporar(T["registro"], asistentes, resultado["mentoria"], R.tipo_acreditado)
+    registros = T["registro"]
     full = calcular(R, alias, personas, registros, asistentes)
     fechas = [e["fecha"] for e in full["evolucion"]]
     hoy = hoy or datetime.date.today()
