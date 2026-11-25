@@ -36,6 +36,7 @@ def compactar(R, res, params_extra, full=None, en_curso=None):
             "i": n, "n": p["nombre_completo"], "gid": p["grupo_id"], "g": p["grupo_actual"], "p": p["proyecto"], "t": p["tipo_grupo"], "r": p["rol"],
             "m": int(p["es_miembro"]), "f": p["fecha_ingreso"], "ar": int(p["at_risk"]), "ua": p["ultima_asistencia"], "rc": p["racha_actual"],
             "s": [[ix[h["fecha"]], int(h["asistio"])] for h in p["sesiones"]], "sg": [[ix[h["fecha"]], int(h["asistio"])] for h in p["sesiones_grupo"]],
+            "mt": [ix[h["fecha"]] for h in p["sesiones"] if h["acreditada"]],  # sesiones contadas por su periodo como 8. Mentores
             "c": ultima_por_dni.get(p["dni"])})  # asistencia de la semana en curso (None si no le aplica)
     if en_curso is not None and en_curso["fecha"] not in ix:
         fechas.append(en_curso["fecha"])
@@ -82,6 +83,7 @@ def main():
     R, res, data, c = preparar(T)
     out = escribir(data, a.salida)
     print(f"[OK] {out} | personas {len(data['personas'])} | grupos {len(data['grupos'])} | sesiones {len(data['fechas'])} | maestro {data['params']['maestro']} | {out.stat().st_size // 1024} KB")
+    print(f"[INFO] mentoría: {len(c['acreditados'])} personas con meses en '{c['R'].tipo_acreditado}' dentro del ciclo")
     if c["sanados"]["dnis"]:
         print(f"[INFO] {c['sanados']['asistencias']} asistencias de {c['sanados']['dnis']} DNI cambiados en el maestro se llevaron al DNI actual de la persona")
     if c["huerfanos"]["asistencias"]:

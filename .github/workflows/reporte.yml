@@ -3,6 +3,7 @@ name: Reporte Asistencia J1
 on:
   schedule:
     - cron: "0 14 * * 1,2"   # lunes y martes, 9:00 a. m. hora de Lima
+    - cron: "0 7 * * 3"      # miércoles, 2:00 a. m. hora de Lima: la semana ya sale cerrada
   workflow_dispatch:
     inputs:
       publicar:
@@ -23,7 +24,7 @@ jobs:
   generar:
     runs-on: ubuntu-latest
     env:
-      TZ: America/Lima                          # GitHub corre en UTC y con horas de retraso: sin esto, un lunes por la noche contaria como martes y cerraria la semana antes
+      TZ: America/Lima                          # GitHub corre en UTC y con horas de retraso: sin esto, un martes por la noche contaria como miercoles y cerraria la semana antes
       J1_FACT_ASISTENCIA_ID: "1OMRgDbP4Zjtd4q2RVlUA2mFRlYstZRLtFeyySGXcHls"        # Fact_Asistencia_J1 (no es un secreto)
       GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
     steps:

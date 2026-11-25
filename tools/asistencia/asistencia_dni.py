@@ -17,7 +17,7 @@ for p in ("tools/core", "tools/maestros"):
 from maestros_formato import norm  # noqa: E402
 
 
-def _persona(x):
+def persona(x):
     """Identidad estable de una fila del maestro: nombre completo normalizado + fecha de nacimiento."""
     return (norm(x.get("NOM_COMPLETO", "")), str(x.get("FECHA_NACIMIENTO") or "").strip())
 
@@ -37,12 +37,12 @@ def sanar(asistentes, personas, historial):
         return asistentes, {}
     vigentes = {}
     for x in personas:
-        vigentes.setdefault(_persona(x), []).append(str(x["DNI"]))
+        vigentes.setdefault(persona(x), []).append(str(x["DNI"]))
     quienes = {}  # dni huérfano -> identidades que lo usaron en el pasado
     for filas in historial().values():
         for x in filas:
             if str(x["DNI"]) in sin:
-                quienes.setdefault(str(x["DNI"]), set()).add(_persona(x))
+                quienes.setdefault(str(x["DNI"]), set()).add(persona(x))
     mapa = {}
     for viejo, identidades in quienes.items():
         if len(identidades) != 1:

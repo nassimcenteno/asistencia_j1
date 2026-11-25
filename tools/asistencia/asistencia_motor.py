@@ -8,13 +8,16 @@ import datetime
 from collections import Counter, defaultdict
 
 
-def _historial(R, fechas, asistidas):
-    return [{"fecha": d.isoformat(), "asistio": d in asistidas, "quarter": R.quarter(d), "evento": R.eventos.get(d.isoformat())} for d in fechas]
+def _historial(R, fechas, asistidas, acreditadas):
+    return [{"fecha": d.isoformat(), "asistio": d in asistidas, "acreditada": d in acreditadas, "quarter": R.quarter(d), "evento": R.eventos.get(d.isoformat())} for d in fechas]
 
 
-def calcular(R, alias, personas_maestro, registros, asistentes, hasta=None, generado=None):
+def calcular(R, alias, personas_maestro, registros, asistentes, hasta=None, generado=None, meses_acreditados=None):
     """`personas_maestro`: filas del maestro vigente (dicts con DNI, NOM_COMPLETO, GRUPO_ACTUAL, TIPO_GRUPO, ROL_ACTUAL, TIPO_MIEMBRO, FECHA_INGRESO).
-    `registros`/`asistentes`: tablas del Fact (dicts; fechas ISO). `hasta`: ignora sesiones posteriores (para comparar con una corrida vieja)."""
+    `registros`/`asistentes`: tablas del Fact (dicts; fechas ISO). `hasta`: ignora sesiones posteriores (para comparar con una corrida vieja).
+    `meses_acreditados`: {dni: {'AAAA-MM'}} meses en que la persona tuvo el tipo que cuenta como asistencia (8. Mentores, ver asistencia_carga.meses_acreditados):
+    toda sesión de su grupo actual en esos meses le aplica y cuenta como asistida. No crea sesiones: si hubo reunión se decide solo con asistencia real."""
+    meses_acreditados = meses_acreditados or {}
     # --- población y asistencia efectiva ---
     poblacion = {}
     for x in personas_maestro:
@@ -38,7 +41,7 @@ def calcular(R, alias, personas_maestro, registros, asistentes, hasta=None, gene
         if d is not None:
             asistio[str(a["dni"])].add(d)
 
-    asist_gf = Counter()  # (grupo_id, fecha) -> personas del grupo actual que asistieron
+    asist_gf = Counter()  # (grupo_id, fecha) -> personas del grupo actual que asistieron DE VERDAD (lo acreditado no cuenta para saber si hubo reunión)
     for dni, p in poblacion.items():
         for d in asistio.get(dni, ()):
             asist_gf[(p["gid"], d)] += 1
@@ -53,11 +56,11 @@ def calcular(R, alias, personas_maestro, registros, asistentes, hasta=None, gene
         m, gid = p["m"], p["gid"]
         nom_grupo = R.grupos[gid]["nombre"]
         af = m.get("FECHA_INGRESO")
-        g_af = R.inicio.get(gid)
-        af_grupo = max(af, g_af) if af and g_af else (af or g_af)
-        asistidas = asistio.get(dni, set())
-        fechas = [d for d in ses_persona[gid] if af is None or d >= af]
-        fechas_g = [d for d in ses_grupo[gid] if af is None or d >= af]
+        reales, meses = asistio.get(dni, set()), meses_acreditados.get(dni, ())
+        mentoria = {d for d in ses_persona[gid] if d.strftime("%Y-%m") in meses}
+        asistidas, acreditadas = reales | mentoria, mentoria - reales
+        fechas = [d for d in ses_persona[gid] if af is None or d >= af or d in mentoria]
+        fechas_g = [d for d in ses_grupo[gid] if af is None or d >= af or d in mentoria]
         asist_q = {q[0]: 0 for q in R.quarters}
         total_q = {q[0]: 0 for q in R.quarters}
         for d in fechas:
@@ -68,7 +71,7 @@ def calcular(R, alias, personas_maestro, registros, asistentes, hasta=None, gene
         total_ses = len(fechas)
         pct = round(total_asist / total_ses * 100, 1) if total_ses else 0
         pct_q = {q: round(asist_q[q] / total_q[q] * 100, 1) if total_q[q] else 0 for q in asist_q}
-        hist = _historial(R, fechas, asistidas)
+        hist = _historial(R, fechas, asistidas, acreditadas)
         ultimas = hist[-R.ventana_riesgo:]
         at_risk = len(ultimas) >= R.ventana_riesgo and not any(h["asistio"] for h in ultimas)  # quien tiene menos de N sesiones no está en riesgo (cambio del 2026-11-21)
         racha = 0
@@ -84,15 +87,14 @@ def calcular(R, alias, personas_maestro, registros, asistentes, hasta=None, gene
             "id": dni, "dni": dni, "nombre_completo": m["NOM_COMPLETO"], "grupo_actual": nom_grupo, "grupo_id": gid,
             "proyecto": R.grupos[gid]["proyecto"], "rol": m.get("ROL_ACTUAL") or "", "tipo_miembro": m.get("TIPO_MIEMBRO") or "",
             "es_miembro": R.es_miembro(m.get("TIPO_MIEMBRO")), "tipo_grupo": tipo, "fecha_ingreso": af.isoformat() if af else None,
-            "sesiones": hist, "sesiones_grupo": _historial(R, fechas_g, asistidas), "total_sesiones": total_ses, "total_asistencias": total_asist,
+            "sesiones": hist, "sesiones_grupo": _historial(R, fechas_g, asistidas, acreditadas), "total_sesiones": total_ses, "total_asistencias": total_asist,
             "pct_total": pct, "status": R.status(pct), "at_risk": at_risk,
             "ultima_asistencia": max(asistidas).isoformat() if asistidas else None, "racha_actual": racha}
         for q in asist_q:
             ql = q.lower()
             reg[f"pct_{ql}"], reg[f"asist_{ql}"], reg[f"total_{ql}"] = pct_q[q], asist_q[q], total_q[q]
             reg[f"status_{ql}"] = R.status(pct_q[q]) if total_q[q] else None
-        # aplica_grupo (nivel grupo): sesiones válidas desde el inicio del grupo y del ingreso
-        reg["_aplica_grupo"] = {d for d in ses_persona[gid] if af_grupo is None or d >= af_grupo}
+        reg["_aplica_grupo"] = set(fechas_g)  # nivel grupo: sesiones válidas desde el inicio del grupo y del ingreso
         reg["_asistidas"] = asistidas
         plist.append(reg)
         por_dni[dni] = reg
@@ -135,9 +137,10 @@ def calcular(R, alias, personas_maestro, registros, asistentes, hasta=None, gene
     tipos = [{"tipo": t, "label": etiquetas.get(t, t), "personas": v[2], "pct_asistencia": round(v[0] / v[1] * 100, 1) if v[1] else 0} for t, v in tstats.items()]
 
     asist_fecha = Counter(h["fecha"] for p in plist for h in p["sesiones"] if h["asistio"])
+    aplica_fecha = Counter(h["fecha"] for p in plist for h in p["sesiones"])
     evolucion = []
     for d in todas:
-        total = sum(1 for p in plist if R.sesion_valida(d, p["grupo_id"], asist_gf) and (p["fecha_ingreso"] is None or d >= datetime.date.fromisoformat(p["fecha_ingreso"])))
+        total = aplica_fecha.get(d.isoformat(), 0)
         if total == 0:
             continue
         a = asist_fecha.get(d.isoformat(), 0)

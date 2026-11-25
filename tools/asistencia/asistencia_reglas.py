@@ -28,6 +28,7 @@ class Reglas:
         self.miembro_formal = set(lista(p["miembros_formales"]))
         self.quarters = [(q, _fecha(p[q.lower() + "_desde"]), _fecha(p[q.lower() + "_hasta"])) for q in QUARTERS]  # [(nombre 'Q1', inicio, fin|None)]
         self.viajeros = id_grupo(p.get("grupo_viajeros", ""))
+        self.tipo_acreditado = p.get("tipo_que_cuenta_como_asistencia", "").strip()  # TIPO_GRUPO del maestro cuyos meses cuentan como asistidos ('8. Mentores'); vacío = regla apagada
         self.asistencia_manda = {gid for gid, g in self.grupos.items() if g["sesion_si_asiste_alguien"].strip().upper() == "SI"}
         self.inicio = {gid: _fecha(g["empieza_el"]) for gid, g in self.grupos.items() if g["empieza_el"].strip()}
         self.excepciones = {}  # fecha iso -> (modo 'solo'|'todos_menos', {grupo_id}); una fila sin grupos no restringe

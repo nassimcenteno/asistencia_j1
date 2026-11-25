@@ -119,7 +119,6 @@ svg.i{width:1em;height:1em;stroke:currentColor;fill:none;stroke-width:1.8;stroke
 .main{min-width:0;container-type:inline-size;container-name:main}
 .top{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:4px 2px 14px}
 .top h1{font-size:26px;line-height:1.1}
-.top .ctx{color:var(--ink-3);font-size:12.5px}
 .alertas{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap}
 .al{display:inline-flex;align-items:center;gap:6px;padding:5px 11px;border-radius:99px;font-size:12px;color:var(--ink-2)}
 .al.w{color:var(--incons);border-color:color-mix(in srgb,var(--incons) 45%,transparent)}
@@ -347,7 +346,6 @@ table.tp .nom>span:not(.av){display:block;line-height:1.25}
   .tb{height:44px}.nav-v button{height:44px}
 }
 .cerrar-m{display:none;margin-top:8px;padding:12px;border-radius:12px;background:var(--brand);color:var(--brand-ink);font-weight:600;text-align:center}
-.top .ctx{color:var(--ink-3);font-size:12.5px}
 @media(max-width:760px){.c{padding:14px}.est-row{grid-template-columns:86px 1fr 40px 36px}.fila-b{grid-template-columns:90px 1fr 38px}
   .drawer{top:auto;left:0;width:100%;height:90dvh;border-radius:22px 22px 0 0;animation:up .3s var(--ease)}}
 @keyframes up{from{transform:translateY(40px);opacity:0}}
@@ -817,17 +815,17 @@ function htmlPersona(i){
   return `<div class="dk"><div><small>Asistencia</small><b class="num" style="color:${COLOR[est]}">${fmt(per.pct,0)}%</b></div><div><small>Estado</small><b style="font-size:16px">${bdg(est)}</b></div><div><small>Racha</small><b style="font-size:15px">${rcTxt(p.rc)}</b></div></div>
     <div class="eyebrow" style="margin:16px 0 6px">Por quarter</div><div class="qbar">${QS.map((q,k)=>`<div><small>${q}</small><b class="num" style="color:${qs[k]==null?'var(--ink-3)':COLOR[status(qs[k])]}">${qs[k]==null?'–':fmt(qs[k],0)}</b></div>`).join('')}</div>
     <div class="eyebrow" style="margin:16px 0 4px">Historial semana a semana</div>
-    <div class="strip">${[...porQ.entries()].map(([q,arr])=>`<div class="qh">${q}</div>${arr.map(([di,as])=>{const f=D.fechas[di],ev=D.eventos[f];return `<i class="${as?'a':''}${ev?' ev':''}" tabindex="0" data-tt="${dlargo(f)} ${f.slice(0,4)}|${as?'Asistió':'No asistió'}|${ev?'Evento: '+esc(ev):'Reunión regular'}" aria-label="${dlargo(f)}: ${as?'asistió':'no asistió'}${ev?', evento '+esc(ev):''}"></i>`}).join('')}`).join('')||'<div class="vacio">Sin sesiones.</div>'}</div>
+    <div class="strip">${[...porQ.entries()].map(([q,arr])=>`<div class="qh">${q}</div>${arr.map(([di,as])=>{const f=D.fechas[di],ev=D.eventos[f];return `<i class="${as?'a':''}${ev?' ev':''}" tabindex="0" data-tt="${dlargo(f)} ${f.slice(0,4)}|${as?'Asistió':'No asistió'}|${ev?'Evento: '+esc(ev):'Reunión regular'}${p.mt.includes(di)?'|Contada por mentoría':''}" aria-label="${dlargo(f)}: ${as?'asistió':'no asistió'}${ev?', evento '+esc(ev):''}"></i>`}).join('')}`).join('')||'<div class="vacio">Sin sesiones.</div>'}</div>
     <div class="legend"><span><i style="background:var(--fiel)"></i>Asistió</span><span><i style="background:var(--field-2);border:1px solid var(--line)"></i>No asistió</span></div>
-    <div class="lectura" style="margin-top:14px"><div class="ins"><div class="ico">${ic('check')}</div><p><b>${asist}</b> asistencias de <b>${total}</b> sesiones que le aplicaban${p.ua?`. Última vez: <b>${dlargo(p.ua)}</b>`:'. Nunca ha asistido'}.</p></div>
+    <div class="lectura" style="margin-top:14px"><div class="ins"><div class="ico">${ic('check')}</div><p><b>${asist}</b> asistencias de <b>${total}</b> sesiones que le aplicaban${p.ua?`. Última vez: <b>${dlargo(p.ua)}</b>`:'. Nunca ha asistido'}.${p.mt.length?` <b>${p.mt.length}</b> se cuentan por su periodo como mentor.`:''}</p></div>
     ${p.f?`<div class="ins"><div class="ico">${ic('clock')}</div><p>En el grupo desde el <b>${dlargo(p.f)} ${p.f.slice(0,4)}</b>${p.m?', miembro formal':''}.</p></div>`:''}</div>`;
 }
 
 /* tooltip flotante para celdas con data-tt="fecha|estado|detalle" (historial de una persona) */
 function ligarTipsFecha(raiz){
   let tip=document.querySelector('#tipg');if(!tip){tip=document.createElement('div');tip.id='tipg';tip.className='tip glass';tip.style.position='fixed';tip.style.zIndex=90;document.body.appendChild(tip)}
-  const mostrar=el=>{const [a,b,c]=el.dataset.tt.split('|'),r=el.getBoundingClientRect();
-    tip.innerHTML=`<span>${a}</span><b>${b}</b><span${c.startsWith('Evento')?' class="ev"':''}>${c}</span>`;
+  const mostrar=el=>{const [a,b,c,d]=el.dataset.tt.split('|'),r=el.getBoundingClientRect();
+    tip.innerHTML=`<span>${a}</span><b>${b}</b><span${c.startsWith('Evento')?' class="ev"':''}>${c}</span>${d?`<span style="display:block">${d}</span>`:''}`;
     tip.style.left=Math.max(80,Math.min(innerWidth-80,r.left+r.width/2))+'px';tip.style.top=(r.top-8)+'px';tip.classList.add('on')};
   raiz.querySelectorAll('[data-tt]').forEach(el=>{el.onmouseenter=el.onfocus=()=>mostrar(el);el.onmouseleave=el.onblur=()=>tip.classList.remove('on')});
 }
@@ -914,7 +912,7 @@ function render(){
     <div class="main">
       <div class="mtop"><button class="icon-btn glass" id="abrir-m" aria-label="Abrir filtros">${ic('menu')}</button><div class="logo"><span class="mark">${ic('check')}</span>Asistencia J1</div></div>
       <nav class="mtabs glass" aria-label="Secciones">${NAV.map(([k,n])=>`<button data-t="${k}" ${ST.tab===k?'aria-current="page"':''}>${n}</button>`).join('')}</nav>
-      <header class="top"><h1>${NAV.find(x=>x[0]===ST.tab)[1]}</h1>${ctx?`<span class="ctx">${ST.proy.size===2?'J1 + Betta':ST.proy.has('j1')?'J1':'Betta'} · ${ST.qs.size===QS.length?'Todo el ciclo':QS.filter(x=>ST.qs.has(x)).join(' + ')} · ${ctx.r.ps.length} personas</span>`:''}
+      <header class="top"><h1>${NAV.find(x=>x[0]===ST.tab)[1]}</h1>
         <div class="alertas">${D.en_curso?`<span class="al glass" title="Todavía están registrando: no entra en los totales">${ic('clock')}Semana del ${dm(D.en_curso)} en curso</span>`:''}${sinReg.length?`<span class="al glass w" title="Sin ningún registro de asistencia en el período">${ic('alert')}Sin registros: ${sinReg.map(g=>esc(g.n)).join(', ')}</span>`:''}${P.sin_persona?`<span class="al glass w" title="Asistencias cuyo DNI no está en el maestro y no se pudo asociar a nadie: no se cuentan. Revisar si cambió un DNI.">${ic('alert')}${P.sin_persona} asistencias sin persona en el maestro</span>`:''}</div></header>
       <main class="dash fade">${cuerpo}</main></div></div>
     ${ST.menu?'<div class="scrim" id="scrim-m" style="z-index:65"></div>':''}`;

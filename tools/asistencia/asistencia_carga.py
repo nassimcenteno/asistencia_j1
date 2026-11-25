@@ -12,11 +12,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 for p in ("tools/core", "tools/maestros", "tools/asistencia"):
     sys.path.insert(0, str(ROOT / p))
-from maestros_drive import vigente, cargar, cargar_todos, servicios, reint  # noqa: E402
+from maestros_drive import meses, vigente, cargar, cargar_todos, servicios, reint  # noqa: E402
 from asistencia_modelo import leer_tabla, Alias  # noqa: E402
 from asistencia_reglas import Reglas  # noqa: E402
 from asistencia_motor import calcular  # noqa: E402
-from asistencia_dni import sanar, huerfanos  # noqa: E402
+from asistencia_dni import sanar, huerfanos, persona  # noqa: E402
 
 TABLAS = ("registro", "asistente", "grupos", "calendario", "parametros")
 
@@ -41,10 +41,33 @@ def reglas_y_alias(T):
     return Reglas(T["grupos"], T["calendario"], T["parametros"]), Alias(T["grupos"])
 
 
+def meses_acreditados(personas, historial, tipo):
+    """Regla de mentoría: {dni vigente: {'AAAA-MM'}} con los meses en que cada persona que HOY tiene grupo figuró en el maestro de ese mes con TIPO_GRUPO = `tipo`
+    (8. Mentores). `historial`: {mes: filas del maestro}. Se reconoce por DNI y, si el DNI cambió, por nombre y nacimiento (solo si es única en el vigente).
+    La foto es mensual: si el tipo cambió a mitad de mes, vale el del cierre para todo el mes."""
+    activos = [x for x in personas if x.get("GRUPO_ACTUAL")]
+    por_dni, por_persona = {str(x["DNI"]) for x in activos}, {}
+    for x in activos:
+        por_persona.setdefault(persona(x), []).append(str(x["DNI"]))
+    en_maestro = {str(x["DNI"]) for x in personas}
+    out = {}
+    for ym, filas in historial.items():
+        for x in filas:
+            if (x.get("TIPO_GRUPO") or "").strip() != tipo:
+                continue
+            dni, iguales = str(x["DNI"]), por_persona.get(persona(x), [])
+            if dni in por_dni:
+                out.setdefault(dni, set()).add(ym)
+            elif dni not in en_maestro and len(iguales) == 1:
+                out.setdefault(iguales[0], set()).add(ym)
+    return out
+
+
 def calcular_hoy(T, hoy=None):
     """Motor con el maestro vigente (grupos de hoy hacia atrás). Devuelve dict: R, res (sin la semana en curso), full (con ella),
     en_curso (su fila de evolución o None), maestro (mes del maestro usado), sanados (DNI de asistencia llevados al DNI actual de la persona)
-    y huerfanos (asistencias cuyo DNI no está en el maestro ni se pudo resolver: no se cuentan y se avisa). Ambos como {dnis, asistencias}."""
+    y huerfanos (asistencias cuyo DNI no está en el maestro ni se pudo resolver: no se cuentan y se avisa), ambos como {dnis, asistencias},
+    y acreditados ({dni: meses} en que fue 8. Mentores, que cuentan como asistidos)."""
     R, alias = reglas_y_alias(T)
     maestro_ym, _ = vigente()
     personas = cargar(maestro_ym)
@@ -56,10 +79,15 @@ def calcular_hoy(T, hoy=None):
     resultado = {"R": R, "maestro": maestro_ym,
                  "sanados": {"dnis": len(mapa), "asistencias": sum(1 for a in original if str(a["dni"]) in mapa)},
                  "huerfanos": {"dnis": len({str(a["dni"]) for a in sin}), "asistencias": len(sin)}}
-    full = calcular(R, alias, personas, T["registro"], asistentes)
+    acreditados = {}
+    if R.tipo_acreditado:
+        sabados = [r["sabado"][:7] for r in T["registro"] if r["registro_id"] in vigentes]
+        acreditados = meses_acreditados(personas, {ym: cargar(ym) for ym in meses() if min(sabados) <= ym <= max(sabados)}, R.tipo_acreditado)
+    resultado["acreditados"] = acreditados
+    full = calcular(R, alias, personas, T["registro"], asistentes, meses_acreditados=acreditados)
     fechas = [e["fecha"] for e in full["evolucion"]]
     hoy = hoy or datetime.date.today()
     if R.semana_en_curso_dias and len(fechas) > 1 and (hoy - datetime.date.fromisoformat(fechas[-1])).days <= R.semana_en_curso_dias:
-        res = calcular(R, alias, personas, T["registro"], asistentes, hasta=datetime.date.fromisoformat(fechas[-2]))
+        res = calcular(R, alias, personas, T["registro"], asistentes, hasta=datetime.date.fromisoformat(fechas[-2]), meses_acreditados=acreditados)
         return {**resultado, "res": res, "full": full, "en_curso": full["evolucion"][-1]}
     return {**resultado, "res": full, "full": full, "en_curso": None}
